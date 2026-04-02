@@ -32,27 +32,34 @@ class ObjectModel(BaseModel):
     id: Optional[str] = None
     table_name: ClassVar[str] = ""
     nullable_fields: ClassVar[set[str]] = set()  # Fields that can be saved as None
+    owner: Optional[str] = None
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
 
     @classmethod
-    async def get_all(cls: Type[T], order_by=None) -> List[T]:
+    async def get_all(
+        cls: Type[T], order_by=None, owner: Optional[str] = None
+    ) -> List[T]:
         try:
-            # If called from a specific subclass, use its table_name
             if cls.table_name:
                 target_class = cls
                 table_name = cls.table_name
             else:
-                # This path is taken if called directly from ObjectModel
                 raise InvalidInputError(
                     "get_all() must be called from a specific model class"
                 )
-            if order_by:
-                query = f"SELECT * FROM {table_name} ORDER BY {order_by}"
-            else:
-                query = f"SELECT * FROM {table_name}"
 
-            result = await repo_query(query)
+            where = "WHERE owner = $owner" if owner else ""
+            params: Dict[str, Any] = {}
+            if owner:
+                params["owner"] = owner
+
+            if order_by:
+                query = f"SELECT * FROM {table_name} {where} ORDER BY {order_by}"
+            else:
+                query = f"SELECT * FROM {table_name} {where}"
+
+            result = await repo_query(query, params if params else None)
             objects = []
             for obj in result:
                 try:
@@ -67,7 +74,7 @@ class ObjectModel(BaseModel):
             raise DatabaseOperationError(e)
 
     @classmethod
-    async def get(cls: Type[T], id: str) -> T:
+    async def get(cls: Type[T], id: str, owner: Optional[str] = None) -> T:
         if not id:
             raise InvalidInputError("ID cannot be empty")
         try:
@@ -86,9 +93,14 @@ class ObjectModel(BaseModel):
 
             result = await repo_query("SELECT * FROM $id", {"id": ensure_record_id(id)})
             if result:
-                return target_class(**result[0])
+                obj = target_class(**result[0])
+                if owner and hasattr(obj, "owner") and obj.owner != owner:
+                    raise NotFoundError(f"{table_name} with id {id} not found")
+                return obj
             else:
                 raise NotFoundError(f"{table_name} with id {id} not found")
+        except NotFoundError:
+            raise
         except Exception as e:
             logger.error(f"Error fetching object with id {id}: {str(e)}")
             logger.exception(e)

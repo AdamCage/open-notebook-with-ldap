@@ -196,6 +196,13 @@ export const bnIN = {
     signingIn: "সাইন ইন করা হচ্ছে...",
     signIn: "সাইন ইন",
     connectErrorHint: "সার্ভারে সংযোগ করতে অক্ষম। API চালু আছে কিনা চেক করুন।",
+    ldapLoginTitle: "LDAP সাইন ইন",
+    ldapLoginDesc: "অ্যাপ্লিকেশন অ্যাক্সেস করতে আপনার LDAP তথ্য লিখুন",
+    usernamePlaceholder: "ব্যবহারকারীর নাম",
+    continueWithLdap: "LDAP দিয়ে চালিয়ে যান",
+    continueWithPassword: "পাসওয়ার্ড দিয়ে চালিয়ে যান",
+    authenticating: "প্রমাণীকরণ হচ্ছে...",
+    ldapAuthFailed: "LDAP প্রমাণীকরণ ব্যর্থ",
   },
   navigation: {
     collect: "সংগ্রহ",

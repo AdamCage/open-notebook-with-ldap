@@ -139,3 +139,6 @@ specs/
 
 *.local.yml
 **/*.local.md
+
+objective.md
+review*.md

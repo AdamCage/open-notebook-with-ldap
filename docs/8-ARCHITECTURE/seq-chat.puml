@@ -1,0 +1,36 @@
+@startuml seq_chat
+title Chat Conversation Flow
+
+actor User
+participant "ChatPanel\n(Frontend)" as FE
+participant "POST /chat/execute\n(router)" as Router
+participant "chat_graph\n(LangGraph)" as Graph
+participant "ContextBuilder" as Ctx
+participant "Esperanto\n(AI Provider)" as AI
+participant "SqliteSaver\n(checkpoint)" as CP
+participant "SurrealDB" as DB
+
+User -> FE : Type message, click Send
+FE -> Router : POST /chat/execute\n{session_id, message, model_override, context}
+
+Router -> Router : Verify session ownership
+Router -> DB : Load ChatSession
+Router -> Graph : ainvoke({messages, notebook, context, ...},\nconfig={configurable: {thread_id, model_id}})
+
+Graph -> Ctx : Build context from\nselected sources/notes
+Ctx -> DB : Fetch source full_text,\ninsights, note content
+Ctx --> Graph : Formatted context string
+
+Graph -> Graph : Assemble system prompt\n+ message history + context
+
+Graph -> AI : ainvoke(prompt)\n[streaming]
+AI --> Graph : Token stream
+
+Graph -> CP : Save checkpoint\n(messages + AI response)
+
+Graph --> Router : Final AI message
+Router --> FE : Streamed response (SSE)
+
+FE -> User : Display AI response\nwith citations
+
+@enduml

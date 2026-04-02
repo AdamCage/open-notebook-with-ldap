@@ -1,0 +1,54 @@
+@startuml seq_ldap_auth
+title LDAP Authentication Flow
+
+actor User
+participant "LoginForm" as LF
+participant "auth-store" as Store
+participant "use-auth hook" as Hook
+participant "POST /auth/ldap\n(router)" as Router
+participant "LDAP Server" as LDAP
+participant "create_ldap_jwt\n(auth.py)" as JWT
+participant "Middleware" as MW
+
+User -> LF : Enter username + password,\nclick "Sign in with LDAP"
+LF -> Hook : handleLdapLogin(user, pass)
+Hook -> Store : ldapLogin(user, pass)
+Store -> Router : POST /api/auth/ldap\n{user, password}
+
+Router -> Router : Load LdapSettings\n(get_ldap_settings)
+Router -> Router : Configure TLS\n(ldap3.Tls)
+Router -> LDAP : App bind\n(LDAP_APP_DN / LDAP_APP_PASSWORD)
+LDAP --> Router : Bind OK
+
+Router -> LDAP : Search user\n(search_base, filter with escaped username)
+LDAP --> Router : Entry: user_dn, email, cn
+
+Router -> LDAP : User bind\n(user_dn + user password)
+
+alt Bind succeeds
+    LDAP --> Router : Bind OK
+    Router -> JWT : create_ldap_jwt(sub, email, name)
+    JWT --> Router : JWT token (HS256, 24h expiry)
+    Router --> Store : 200 {token}
+    Store -> Store : isAuthenticated = true\ntoken = JWT
+    Store --> Hook : success = true
+    Hook -> User : Redirect to /notebooks
+
+    note right of MW
+      Subsequent requests send
+      Authorization: Bearer {JWT}.
+      Middleware decodes JWT,
+      sets request.state.user.
+    end note
+else Bind fails
+    LDAP --> Router : Invalid credentials
+    Router --> Store : 401 AuthenticationError
+    Store -> Store : error = "ldapAuthFailed"
+    Store --> Hook : success = false
+    Hook -> Hook : Replace error key\nwith t.auth.ldapAuthFailed
+    Hook -> User : Show translated error
+end
+
+Router -> LDAP : unbind (finally block)
+
+@enduml

@@ -1,0 +1,42 @@
+@startuml seq_ask
+title Ask Workflow Flow (Streaming)
+
+actor User
+participant "SearchPage\n(Frontend)" as FE
+participant "POST /search/ask\n(router)" as Router
+participant "ask_graph\n(LangGraph)" as Graph
+participant "call_model_with_messages\n(strategy node)" as StratNode
+participant "provide_answer\n(fan-out nodes)" as AnsNode
+participant "write_final_answer\n(synthesis node)" as FinalNode
+participant "Esperanto\n(AI Provider)" as AI
+participant "SurrealDB" as DB
+
+User -> FE : Enter question, click Ask
+FE -> Router : POST /search/ask\n{question, strategy_model,\nanswer_model, final_answer_model}
+
+Router -> Router : get_owner_id(user)
+Router -> Graph : astream(question,\nconfig={configurable: {models, owner}})
+
+Graph -> StratNode : Generate search strategy
+StratNode -> AI : LLM call (strategy prompt)
+AI --> StratNode : Strategy JSON\n{searches: [{term, instructions}, ...]}
+StratNode --> FE : SSE: {type: "strategy", ...}
+
+loop For each search term (parallel via Send)
+    Graph -> AnsNode : provide_answer({term, instructions})
+    AnsNode -> DB : vector_search(term, owner=owner)
+    DB --> AnsNode : Matching chunks
+    AnsNode -> AI : LLM call (synthesize from results)
+    AI --> AnsNode : Partial answer
+    AnsNode --> FE : SSE: {type: "answer", content}
+end
+
+Graph -> FinalNode : write_final_answer\n({question, answers})
+FinalNode -> AI : LLM call (combine answers)
+AI --> FinalNode : Final synthesized answer
+FinalNode --> FE : SSE: {type: "final_answer", content}
+
+Graph --> FE : SSE: {type: "complete"}
+FE -> User : Display final answer
+
+@enduml

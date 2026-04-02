@@ -1,0 +1,48 @@
+@startuml seq_podcast
+title Podcast Generation Flow
+
+actor User
+participant "PodcastPage\n(Frontend)" as FE
+participant "POST /podcasts/generate\n(router)" as Router
+participant "PodcastService" as Svc
+participant "surreal-commands\n(Job Queue)" as Queue
+participant "generate_podcast\n(command)" as Cmd
+participant "podcast-creator\n(library)" as PC
+participant "Esperanto\n(AI Provider)" as AI
+participant "SurrealDB" as DB
+
+User -> FE : Select episode profile,\nspeaker profile, notebook
+FE -> Router : POST /podcasts/generate\n{episode_profile, speaker_profile,\nepisode_name, notebook_id}
+
+Router -> Router : owner_id = get_owner_id(user)
+Router -> Svc : submit_generation_job(\n..., owner=owner_id)
+
+Svc -> Svc : Validate profiles exist
+Svc -> DB : Load notebook content
+Svc -> Queue : submit_command\n("generate_podcast",\n{..., owner})
+Svc --> Router : job_id
+Router --> FE : 200 {job_id, status: "submitted"}
+
+Queue -> Cmd : Execute generate_podcast_command
+Cmd -> Cmd : Load & resolve profiles\n(LLM, TTS credentials)
+Cmd -> DB : Create PodcastEpisode\n(owner=input.owner)
+
+Cmd -> PC : create_podcast(\nbriefing, speakers, episode config)
+PC -> AI : LLM: generate outline
+AI --> PC : Outline JSON
+PC -> AI : LLM: generate transcript
+AI --> PC : Transcript with speaker turns
+PC -> AI : TTS: synthesize speech\nfor each speaker
+AI --> PC : Audio segments
+PC -> PC : Mix audio, create final MP3
+PC --> Cmd : Audio file path
+
+Cmd -> DB : Update PodcastEpisode\n(audio_file, transcript, outline)
+Cmd --> Queue : Completed
+
+FE -> Router : GET /podcasts/jobs/{job_id}\n(polling)
+Router --> FE : {status: "completed"}
+FE -> Router : GET /podcasts/episodes/{id}/audio
+Router --> FE : Audio file stream
+
+@enduml

@@ -1,53 +1,68 @@
 'use client'
 
 import { useAuthStore } from '@/lib/stores/auth-store'
+import { useTranslation } from '@/lib/hooks/use-translation'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export function useAuth() {
   const router = useRouter()
+  const { t } = useTranslation()
   const {
     isAuthenticated,
     isLoading,
     login,
+    ldapLogin,
     logout,
     checkAuth,
     checkAuthRequired,
     error,
     hasHydrated,
-    authRequired
+    authRequired,
+    ldapEnabled
   } = useAuthStore()
 
   useEffect(() => {
-    // Only check auth after the store has hydrated from localStorage
     if (hasHydrated) {
-      // First check if auth is required
       if (authRequired === null) {
         checkAuthRequired().then((required) => {
-          // If auth is required, check if we have valid credentials
           if (required) {
             checkAuth()
           }
         })
       } else if (authRequired) {
-        // Auth is required, check credentials
         checkAuth()
       }
-      // If authRequired === false, we're already authenticated (set in checkAuthRequired)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasHydrated, authRequired])
 
+  const redirectAfterAuth = () => {
+    const redirectPath = sessionStorage.getItem('redirectAfterLogin')
+    if (redirectPath) {
+      sessionStorage.removeItem('redirectAfterLogin')
+      router.push(redirectPath)
+    } else {
+      router.push('/notebooks')
+    }
+  }
+
   const handleLogin = async (password: string) => {
     const success = await login(password)
     if (success) {
-      // Check if there's a stored redirect path
-      const redirectPath = sessionStorage.getItem('redirectAfterLogin')
-      if (redirectPath) {
-        sessionStorage.removeItem('redirectAfterLogin')
-        router.push(redirectPath)
-      } else {
-        router.push('/notebooks')
+      redirectAfterAuth()
+    }
+    return success
+  }
+
+  const handleLdapLogin = async (user: string, password: string) => {
+    const success = await ldapLogin(user, password)
+    if (success) {
+      redirectAfterAuth()
+    } else {
+      const currentError = useAuthStore.getState().error
+      if (currentError === 'ldapAuthFailed') {
+        useAuthStore.setState({ error: t.auth.ldapAuthFailed })
       }
     }
     return success
@@ -60,9 +75,11 @@ export function useAuth() {
 
   return {
     isAuthenticated,
-    isLoading: isLoading || !hasHydrated, // Treat lack of hydration as loading
+    isLoading: isLoading || !hasHydrated,
     error,
+    ldapEnabled,
     login: handleLogin,
+    ldapLogin: handleLdapLogin,
     logout: handleLogout
   }
 }

@@ -1,0 +1,111 @@
+@startuml C4_Code_Domain
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Code-Level Diagram — Domain Model Hierarchy
+
+package "open_notebook.domain.base" {
+    class ObjectModel {
+        +id: Optional[str]
+        +owner: Optional[str]
+        +created: Optional[datetime]
+        +updated: Optional[datetime]
+        --
+        +get(id, owner=None): T
+        +get_all(order_by, owner=None): List[T]
+        +save(): None
+        +delete(): bool
+        +relate(relationship, target_id): Any
+    }
+}
+
+package "open_notebook.domain.notebook" {
+    class Notebook {
+        table_name = "notebook"
+        +name: str
+        +description: Optional[str]
+        +archived: bool
+        --
+        +get_sources(): List[Source]
+        +get_notes(): List[Note]
+        +get_context(): str
+    }
+
+    class Source {
+        table_name = "source"
+        +title: Optional[str]
+        +full_text: Optional[str]
+        +topics: List[str]
+        +asset: Optional[Asset]
+        +command: Optional[str]
+        --
+        +get_insights(): List[SourceInsight]
+        +get_embedded_chunks(): int
+        +vectorize(): str
+        +add_to_notebook(notebook_id)
+    }
+
+    class Note {
+        table_name = "note"
+        +title: Optional[str]
+        +content: Optional[str]
+        +note_type: Literal["human","ai"]
+        --
+        +add_to_notebook(notebook_id)
+    }
+
+    class SourceInsight {
+        table_name = "source_insight"
+        +source: str
+        +insight_type: str
+        +content: str
+    }
+
+    class SourceEmbedding {
+        table_name = "source_embedding"
+        +source: str
+        +embedding: List[float]
+        +chunk_text: str
+        +chunk_index: int
+    }
+
+    class ChatSession {
+        table_name = "chat_session"
+        +notebook_id: str
+        +title: Optional[str]
+    }
+}
+
+package "open_notebook.podcasts.models" {
+    class PodcastEpisode {
+        table_name = "podcast_episode"
+        +name: str
+        +episode_profile: dict
+        +speaker_profile: dict
+        +briefing: str
+        +audio_file: Optional[str]
+        +transcript: Optional[dict]
+        +command: Optional[str]
+    }
+}
+
+ObjectModel <|-- Notebook
+ObjectModel <|-- Source
+ObjectModel <|-- Note
+ObjectModel <|-- SourceInsight
+ObjectModel <|-- SourceEmbedding
+ObjectModel <|-- ChatSession
+ObjectModel <|-- PodcastEpisode
+
+Notebook "1" -- "*" Source : reference >
+Notebook "1" -- "*" Note : artifact >
+Source "1" -- "*" SourceEmbedding
+Source "1" -- "*" SourceInsight
+ChatSession "*" -- "1" Notebook
+
+note right of ObjectModel
+  owner field enables per-user data isolation.
+  get() and get_all() accept optional owner
+  for defense-in-depth filtering.
+end note
+
+@enduml

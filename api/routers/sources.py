@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, Response
 from loguru import logger
 from surreal_commands import execute_command_sync, submit_command
 
+from api.auth import get_current_user, get_owner_id
 from api.command_service import CommandService
 from api.models import (
     AssetModel,
@@ -36,6 +37,12 @@ from open_notebook.domain.transformation import Transformation
 from open_notebook.exceptions import InvalidInputError
 
 router = APIRouter()
+
+
+def _ensure_user_owns_source(source: Source, user: Optional[dict]) -> None:
+    owner_id = get_owner_id(user)
+    if owner_id and source.owner != owner_id:
+        raise HTTPException(status_code=404, detail="Source not found")
 
 
 def generate_unique_filename(original_filename: str, upload_folder: str) -> str:
@@ -160,6 +167,7 @@ async def get_sources(
         "updated", description="Field to sort by (created or updated)"
     ),
     sort_order: str = Query("desc", description="Sort order (asc or desc)"),
+    user: Optional[dict] = Depends(get_current_user),
 ):
     """Get sources with pagination and sorting support."""
     try:
@@ -183,6 +191,10 @@ async def get_sources(
             if not notebook:
                 raise HTTPException(status_code=404, detail="Notebook not found")
 
+            owner_id = get_owner_id(user)
+            if owner_id and notebook.owner != owner_id:
+                raise HTTPException(status_code=404, detail="Notebook not found")
+
             # Query sources for specific notebook - include command field with FETCH
             query = f"""
                 SELECT id, asset, created, title, updated, topics, command,
@@ -203,16 +215,22 @@ async def get_sources(
             )
         else:
             # Query all sources - include command field with FETCH
+            owner_id = get_owner_id(user)
+            where_clause = "WHERE owner = $owner" if owner_id else ""
             query = f"""
                 SELECT id, asset, created, title, updated, topics, command,
                 (SELECT VALUE count() FROM source_insight WHERE source = $parent.id GROUP ALL)[0].count OR 0 AS insights_count,
                 (SELECT VALUE id FROM source_embedding WHERE source = $parent.id LIMIT 1) != [] AS embedded
                 FROM source
+                {where_clause}
                 {order_clause}
                 LIMIT $limit START $offset
                 FETCH command
             """
-            result = await repo_query(query, {"limit": limit, "offset": offset})
+            list_params: dict[str, Any] = {"limit": limit, "offset": offset}
+            if owner_id:
+                list_params["owner"] = owner_id
+            result = await repo_query(query, list_params)
 
         # Convert result to response model
         # Command data is already fetched via FETCH command clause
@@ -282,6 +300,7 @@ async def create_source(
     form_data: tuple[SourceCreate, Optional[UploadFile]] = Depends(
         parse_source_form_data
     ),
+    user: Optional[dict] = Depends(get_current_user),
 ):
     """Create a new source with support for both JSON and multipart form data."""
     source_data, upload_file = form_data
@@ -290,10 +309,15 @@ async def create_source(
     file_path = None
 
     try:
-        # Verify all specified notebooks exist (backward compatibility support)
+        # Verify all specified notebooks exist and belong to the current user
+        owner_id = get_owner_id(user)
         for notebook_id in source_data.notebooks or []:
             notebook = await Notebook.get(notebook_id)
             if not notebook:
+                raise HTTPException(
+                    status_code=404, detail=f"Notebook {notebook_id} not found"
+                )
+            if owner_id and notebook.owner != owner_id:
                 raise HTTPException(
                     status_code=404, detail=f"Notebook {notebook_id} not found"
                 )
@@ -357,6 +381,7 @@ async def create_source(
             source = Source(
                 title=source_data.title or "Processing...",
                 topics=[],
+                owner=get_owner_id(user),
             )
             await source.save()
 
@@ -436,6 +461,7 @@ async def create_source(
                 source = Source(
                     title=source_data.title or "Processing...",
                     topics=[],
+                    owner=get_owner_id(user),
                 )
                 await source.save()
 
@@ -552,11 +578,14 @@ async def create_source(
 
 
 @router.post("/sources/json", response_model=SourceResponse)
-async def create_source_json(source_data: SourceCreate):
+async def create_source_json(
+    source_data: SourceCreate,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Create a new source using JSON payload (legacy endpoint for backward compatibility)."""
     # Convert to form data format and call main endpoint
     form_data = (source_data, None)
-    return await create_source(form_data)
+    return await create_source(form_data, user)
 
 
 async def _resolve_source_file(source_id: str) -> tuple[str, str]:
@@ -599,12 +628,17 @@ def _is_source_file_available(source: Source) -> Optional[bool]:
 
 
 @router.get("/sources/{source_id}", response_model=SourceResponse)
-async def get_source(source_id: str):
+async def get_source(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get a specific source by ID."""
     try:
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         # Get status information if command exists
         status = None
@@ -659,9 +693,16 @@ async def get_source(source_id: str):
 
 
 @router.head("/sources/{source_id}/download")
-async def check_source_file(source_id: str):
+async def check_source_file(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Check if a source has a downloadable file."""
     try:
+        source = await Source.get(source_id)
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        _ensure_user_owns_source(source, user)
         await _resolve_source_file(source_id)
         return Response(status_code=200)
     except HTTPException:
@@ -672,9 +713,16 @@ async def check_source_file(source_id: str):
 
 
 @router.get("/sources/{source_id}/download")
-async def download_source_file(source_id: str):
+async def download_source_file(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Download the original file associated with an uploaded source."""
     try:
+        source = await Source.get(source_id)
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        _ensure_user_owns_source(source, user)
         resolved_path, filename = await _resolve_source_file(source_id)
         return FileResponse(
             path=resolved_path,
@@ -689,13 +737,18 @@ async def download_source_file(source_id: str):
 
 
 @router.get("/sources/{source_id}/status", response_model=SourceStatusResponse)
-async def get_source_status(source_id: str):
+async def get_source_status(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get processing status for a source."""
     try:
         # First, verify source exists
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         # Check if this is a legacy source (no command)
         if not source.command:
@@ -751,12 +804,18 @@ async def get_source_status(source_id: str):
 
 
 @router.put("/sources/{source_id}", response_model=SourceResponse)
-async def update_source(source_id: str, source_update: SourceUpdate):
+async def update_source(
+    source_id: str,
+    source_update: SourceUpdate,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Update a source."""
     try:
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         # Update only provided fields
         if source_update.title is not None:
@@ -793,13 +852,18 @@ async def update_source(source_id: str, source_update: SourceUpdate):
 
 
 @router.post("/sources/{source_id}/retry", response_model=SourceResponse)
-async def retry_source_processing(source_id: str):
+async def retry_source_processing(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Retry processing for a failed or stuck source."""
     try:
         # First, verify source exists
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         # Check if source already has a running command
         if source.command:
@@ -918,12 +982,17 @@ async def retry_source_processing(source_id: str):
 
 
 @router.delete("/sources/{source_id}")
-async def delete_source(source_id: str):
+async def delete_source(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Delete a source."""
     try:
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         await source.delete()
 
@@ -936,12 +1005,17 @@ async def delete_source(source_id: str):
 
 
 @router.get("/sources/{source_id}/insights", response_model=List[SourceInsightResponse])
-async def get_source_insights(source_id: str):
+async def get_source_insights(
+    source_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get all insights for a specific source."""
     try:
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         insights = await source.get_insights()
         return [
@@ -969,7 +1043,11 @@ async def get_source_insights(source_id: str):
     response_model=InsightCreationResponse,
     status_code=202,
 )
-async def create_source_insight(source_id: str, request: CreateSourceInsightRequest):
+async def create_source_insight(
+    source_id: str,
+    request: CreateSourceInsightRequest,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """
     Start insight generation for a source by running a transformation.
 
@@ -982,6 +1060,8 @@ async def create_source_insight(source_id: str, request: CreateSourceInsightRequ
         source = await Source.get(source_id)
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
+
+        _ensure_user_owns_source(source, user)
 
         # Validate transformation exists
         transformation = await Transformation.get(request.transformation_id)

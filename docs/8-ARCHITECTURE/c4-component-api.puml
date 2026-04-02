@@ -1,0 +1,41 @@
+@startuml C4_Component_API
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram — API Server
+
+Container_Boundary(api, "API Server (FastAPI)") {
+
+    Component(middleware, "Auth Middleware", "PasswordAuthMiddleware", "Validates Bearer token (password or JWT).\nExtracts user identity into request.state.user.")
+
+    Component(routers, "Routers", "FastAPI APIRouter", "20+ route modules: notebooks, sources,\nnotes, chat, search, podcasts,\nauth, models, transformations, etc.")
+
+    Component(services, "Services", "Python classes", "PodcastService, CommandService,\norchestrate domain objects and jobs.")
+
+    Component(authModule, "LDAP Auth", "api/ldap_config + routers/auth", "LDAP bind/search via ldap3,\nJWT issuance (PyJWT),\nadmin config endpoints.")
+
+    Component(domain, "Domain Models", "ObjectModel subclasses", "Notebook, Source, Note, ChatSession,\nPodcastEpisode, Transformation, etc.\nOwner-scoped CRUD.")
+
+    Component(graphs, "LangGraph Workflows", "StateGraph compilations", "chat, source_chat, ask,\nsource, transformation, prompt graphs.")
+
+    Component(aiProvision, "AI Provisioning", "Esperanto / ModelManager", "provision_langchain_model(),\nmulti-provider selection & fallback.")
+
+    Component(dbLayer, "Database Layer", "repository.py + async_migrate", "repo_query, repo_create, repo_update,\nconnection pool, migrations.")
+}
+
+ComponentDb(db, "SurrealDB", "Graph database")
+Component_Ext(ldap, "LDAP Server", "Directory")
+Component_Ext(ai, "AI Providers", "LLM / Embed / TTS")
+
+Rel(middleware, routers, "Passes authenticated request")
+Rel(routers, services, "Delegates business logic")
+Rel(routers, domain, "Direct CRUD")
+Rel(services, graphs, "Invokes workflows")
+Rel(services, domain, "Reads/writes models")
+Rel(graphs, aiProvision, "Provisions LLM")
+Rel(graphs, domain, "vector_search, text_search")
+Rel(domain, dbLayer, "repo_query / repo_create / etc.")
+Rel(dbLayer, db, "SurrealQL", "WebSocket")
+Rel(authModule, ldap, "Bind + search", "LDAP")
+Rel(aiProvision, ai, "API calls", "HTTPS")
+
+@enduml

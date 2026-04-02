@@ -11,17 +11,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertCircle } from 'lucide-react'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { useTranslation } from '@/lib/hooks/use-translation'
+import type { AuthMode } from '@/lib/types/auth'
 
 export function LoginForm() {
   const { t, language } = useTranslation()
   const [password, setPassword] = useState('')
-  const { login, isLoading, error } = useAuth()
+  const [username, setUsername] = useState('')
+  const [authMode, setAuthMode] = useState<AuthMode>('password')
+  const { login, ldapLogin, isLoading, error, ldapEnabled } = useAuth()
   const { authRequired, checkAuthRequired, hasHydrated, isAuthenticated } = useAuthStore()
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [configInfo, setConfigInfo] = useState<{ apiUrl: string; version: string; buildTime: string } | null>(null)
   const router = useRouter()
 
-  // Load config info for debugging
   useEffect(() => {
     getConfig().then(cfg => {
       setConfigInfo({
@@ -34,7 +36,12 @@ export function LoginForm() {
     })
   }, [])
 
-  // Check if authentication is required on mount
+  useEffect(() => {
+    if (ldapEnabled) {
+      setAuthMode('ldap')
+    }
+  }, [ldapEnabled])
+
   useEffect(() => {
     if (!hasHydrated) {
       return
@@ -43,20 +50,16 @@ export function LoginForm() {
     const checkAuth = async () => {
       try {
         const required = await checkAuthRequired()
-
-        // If auth is not required, redirect to notebooks
         if (!required) {
           router.push('/notebooks')
         }
       } catch (error) {
         console.error('Error checking auth requirement:', error)
-        // On error, assume auth is required to be safe
       } finally {
         setIsCheckingAuth(false)
       }
     }
 
-    // If we already know auth status, use it
     if (authRequired !== null) {
       if (!authRequired && isAuthenticated) {
         router.push('/notebooks')
@@ -68,7 +71,6 @@ export function LoginForm() {
     }
   }, [hasHydrated, authRequired, checkAuthRequired, router, isAuthenticated])
 
-  // Show loading while checking if auth is required
   if (!hasHydrated || isCheckingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -77,7 +79,6 @@ export function LoginForm() {
     )
   }
 
-  // If we still don't know if auth is required (connection error), show error
   if (authRequired === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -127,27 +128,56 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password.trim()) {
-      try {
-        await login(password)
-      } catch (error) {
-        console.error('Unhandled error during login:', error)
-        // The auth store should handle most errors, but this catches any unhandled ones
+    try {
+      if (authMode === 'ldap') {
+        if (username.trim() && password.trim()) {
+          await ldapLogin(username, password)
+        }
+      } else {
+        if (password.trim()) {
+          await login(password)
+        }
       }
+    } catch (error) {
+      console.error('Unhandled error during login:', error)
     }
   }
+
+  const showPasswordAuth = authRequired
+  const showLdapAuth = ldapEnabled
+  const showModeSwitcher = showPasswordAuth && showLdapAuth
+
+  const isLdapMode = authMode === 'ldap'
+  const canSubmit = isLdapMode
+    ? username.trim() && password.trim()
+    : password.trim()
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>{t.auth.loginTitle}</CardTitle>
+          <CardTitle>
+            {isLdapMode ? t.auth.ldapLoginTitle : t.auth.loginTitle}
+          </CardTitle>
           <CardDescription>
-            {t.auth.loginDesc}
+            {isLdapMode ? t.auth.ldapLoginDesc : t.auth.loginDesc}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isLdapMode && (
+              <div>
+                <Input
+                  type="text"
+                  placeholder={t.auth.usernamePlaceholder}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="username"
+                />
+              </div>
+            )}
+
             <div>
               <Input
                 type="password"
@@ -155,6 +185,7 @@ export function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                autoComplete={isLdapMode ? 'current-password' : undefined}
               />
             </div>
 
@@ -168,10 +199,26 @@ export function LoginForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading || !password.trim()}
+              disabled={isLoading || !canSubmit}
             >
-              {isLoading ? t.auth.signingIn : t.auth.signIn}
+              {isLoading ? t.auth.authenticating : t.auth.signIn}
             </Button>
+
+            {showModeSwitcher && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setAuthMode(isLdapMode ? 'password' : 'ldap')
+                  setPassword('')
+                  setUsername('')
+                }}
+                disabled={isLoading}
+              >
+                {isLdapMode ? t.auth.continueWithPassword : t.auth.continueWithLdap}
+              </Button>
+            )}
 
             {configInfo && (
               <div className="text-xs text-center text-muted-foreground pt-2 border-t">

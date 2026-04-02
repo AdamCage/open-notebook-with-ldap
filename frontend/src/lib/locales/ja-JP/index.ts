@@ -196,6 +196,13 @@ export const jaJP = {
     signingIn: "サインイン中...",
     signIn: "サインイン",
     connectErrorHint: "サーバーに接続できません。APIが起動しているか確認してください。",
+    ldapLoginTitle: "LDAPサインイン",
+    ldapLoginDesc: "LDAP資格情報を入力してアプリケーションにアクセス",
+    usernamePlaceholder: "ユーザー名",
+    continueWithLdap: "LDAPで続行",
+    continueWithPassword: "パスワードで続行",
+    authenticating: "認証中...",
+    ldapAuthFailed: "LDAP認証に失敗しました",
   },
   navigation: {
     collect: "収集",

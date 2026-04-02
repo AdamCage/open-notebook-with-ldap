@@ -196,6 +196,13 @@ export const ptBR = {
     signingIn: "Entrando...",
     signIn: "Entrar",
     connectErrorHint: "Não foi possível conectar ao servidor. Verifique se a API está rodando.",
+    ldapLoginTitle: "Login LDAP",
+    ldapLoginDesc: "Digite suas credenciais LDAP para acessar o aplicativo",
+    usernamePlaceholder: "Nome de usuário",
+    continueWithLdap: "Continuar com LDAP",
+    continueWithPassword: "Continuar com senha",
+    authenticating: "Autenticando...",
+    ldapAuthFailed: "Falha na autenticação LDAP",
   },
   navigation: {
     collect: "Coletar",

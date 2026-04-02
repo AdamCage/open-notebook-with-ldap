@@ -628,7 +628,11 @@ class ChatSession(ObjectModel):
 
 
 async def text_search(
-    keyword: str, results: int, source: bool = True, note: bool = True
+    keyword: str,
+    results: int,
+    source: bool = True,
+    note: bool = True,
+    owner: Optional[str] = None,
 ):
     if not keyword:
         raise InvalidInputError("Search keyword cannot be empty")
@@ -636,9 +640,15 @@ async def text_search(
         search_results = await repo_query(
             """
             select *
-            from fn::text_search($keyword, $results, $source, $note)
+            from fn::text_search($keyword, $results, $source, $note, $owner)
             """,
-            {"keyword": keyword, "results": results, "source": source, "note": note},
+            {
+                "keyword": keyword,
+                "results": results,
+                "source": source,
+                "note": note,
+                "owner": owner,
+            },
         )
         return search_results
     except Exception as e:
@@ -653,17 +663,17 @@ async def vector_search(
     source: bool = True,
     note: bool = True,
     minimum_score=0.2,
+    owner: Optional[str] = None,
 ):
     if not keyword:
         raise InvalidInputError("Search keyword cannot be empty")
     try:
         from open_notebook.utils.embedding import generate_embedding
 
-        # Use unified embedding function (handles chunking if query is very long)
         embed = await generate_embedding(keyword)
         search_results = await repo_query(
             """
-            SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score);
+            SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score, $owner);
             """,
             {
                 "embed": embed,
@@ -671,6 +681,7 @@ async def vector_search(
                 "source": source,
                 "note": note,
                 "minimum_score": minimum_score,
+                "owner": owner,
             },
         )
         return search_results

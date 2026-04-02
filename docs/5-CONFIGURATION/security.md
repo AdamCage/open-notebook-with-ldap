@@ -389,6 +389,109 @@ If you discover security vulnerabilities:
 
 ---
 
+## LDAP Authentication
+
+Open Notebook supports LDAP authentication (Active Directory, OpenLDAP, etc.) alongside password-based auth. When enabled, the login page shows a mode switcher allowing users to choose between LDAP and password authentication.
+
+### How It Works
+
+1. User enters LDAP username and password on the login form
+2. The API binds to the LDAP server with a service account (or anonymously)
+3. Searches for the user by username attribute
+4. Verifies the password by binding as the found user DN
+5. Issues a JWT session token (valid for 24 hours)
+6. Subsequent API requests use this JWT as a Bearer token
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_LDAP` | `false` | Enable LDAP authentication |
+| `LDAP_SERVER_HOST` | `localhost` | LDAP server hostname or IP |
+| `LDAP_SERVER_PORT` | `389` | LDAP server port (389 for LDAP, 636 for LDAPS) |
+| `LDAP_USE_TLS` | `true` | Use TLS/SSL for LDAP connection |
+| `LDAP_VALIDATE_CERT` | `true` | Validate TLS certificate |
+| `LDAP_CA_CERT_FILE` | _(empty)_ | Path to CA certificate file |
+| `LDAP_CIPHERS` | `ALL` | Allowed TLS ciphers |
+| `LDAP_ATTRIBUTE_FOR_USERNAME` | `uid` | LDAP attribute for username lookup |
+| `LDAP_ATTRIBUTE_FOR_MAIL` | `mail` | LDAP attribute for user email |
+| `LDAP_APP_DN` | _(empty)_ | Service account DN for search (empty = anonymous bind) |
+| `LDAP_APP_PASSWORD` | _(empty)_ | Service account password |
+| `LDAP_SEARCH_BASE` | _(empty)_ | Base DN for user search |
+| `LDAP_SEARCH_FILTERS` | _(empty)_ | Additional LDAP search filter (appended to username filter) |
+| `LDAP_SERVER_LABEL` | `LDAP Server` | Display label for the LDAP server |
+| `LDAP_JWT_SECRET` | _(falls back to `OPEN_NOTEBOOK_ENCRYPTION_KEY`)_ | Secret for signing LDAP session JWTs |
+
+Docker secrets are supported for `LDAP_APP_PASSWORD` via the `LDAP_APP_PASSWORD_FILE` suffix.
+
+### Example: Active Directory
+
+```bash
+ENABLE_LDAP=true
+LDAP_SERVER_HOST=ad.company.com
+LDAP_SERVER_PORT=636
+LDAP_USE_TLS=true
+LDAP_VALIDATE_CERT=true
+LDAP_ATTRIBUTE_FOR_USERNAME=sAMAccountName
+LDAP_ATTRIBUTE_FOR_MAIL=mail
+LDAP_APP_DN=CN=svc-opennotebook,OU=Service Accounts,DC=company,DC=com
+LDAP_APP_PASSWORD=service_account_password
+LDAP_SEARCH_BASE=OU=Users,DC=company,DC=com
+LDAP_SEARCH_FILTERS=(objectClass=person)
+```
+
+### Example: OpenLDAP
+
+```bash
+ENABLE_LDAP=true
+LDAP_SERVER_HOST=ldap.example.org
+LDAP_SERVER_PORT=389
+LDAP_USE_TLS=false
+LDAP_ATTRIBUTE_FOR_USERNAME=uid
+LDAP_ATTRIBUTE_FOR_MAIL=mail
+LDAP_APP_DN=cn=readonly,dc=example,dc=org
+LDAP_APP_PASSWORD=readonly_password
+LDAP_SEARCH_BASE=ou=people,dc=example,dc=org
+```
+
+### Docker Compose
+
+```yaml
+services:
+  open_notebook:
+    environment:
+      - OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-string
+      - ENABLE_LDAP=true
+      - LDAP_SERVER_HOST=ldap.example.com
+      - LDAP_SERVER_PORT=636
+      - LDAP_USE_TLS=true
+      - LDAP_APP_DN=cn=admin,dc=example,dc=com
+      - LDAP_APP_PASSWORD=admin_password
+      - LDAP_SEARCH_BASE=ou=users,dc=example,dc=com
+```
+
+### Coexistence with Password Auth
+
+LDAP and password authentication can be enabled simultaneously. When both are active:
+
+- The login page shows a toggle to switch between modes
+- Password auth uses the `OPEN_NOTEBOOK_PASSWORD` env var (Bearer token)
+- LDAP auth issues a JWT that the middleware also accepts
+- Admin endpoints (LDAP config) require the password-based Bearer token
+
+If only LDAP is enabled (no `OPEN_NOTEBOOK_PASSWORD` set), the middleware still enforces authentication — it requires a valid LDAP JWT Bearer token on every request. This means LDAP-only mode is fully protected; unauthenticated requests are rejected.
+
+### Security Considerations
+
+- **TLS strongly recommended**: Always use `LDAP_USE_TLS=true` in production
+- **Input escaping**: Usernames are escaped with `ldap3.escape_filter_chars` to prevent LDAP injection
+- **Passwords never stored**: LDAP passwords are used only for bind verification; only a JWT is returned
+- **Service account password**: Never exposed via the admin config API (masked in responses)
+- **JWT secret**: Uses `LDAP_JWT_SECRET` if set, otherwise falls back to `OPEN_NOTEBOOK_ENCRYPTION_KEY`
+- **Token expiry**: LDAP session tokens expire after 24 hours; users must re-authenticate
+
+---
+
 ## Related
 
 - **[Reverse Proxy](reverse-proxy.md)** - HTTPS and SSL setup

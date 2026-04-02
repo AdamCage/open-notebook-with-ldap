@@ -196,6 +196,13 @@ export const zhTW = {
     signingIn: "正在登入...",
     signIn: "登入",
     connectErrorHint: "無法連線至伺服器。請檢查 API 是否正在運行。",
+    ldapLoginTitle: "LDAP 登入",
+    ldapLoginDesc: "輸入 LDAP 憑據以存取應用程式",
+    usernamePlaceholder: "使用者名稱",
+    continueWithLdap: "使用 LDAP 繼續",
+    continueWithPassword: "使用密碼繼續",
+    authenticating: "正在驗證...",
+    ldapAuthFailed: "LDAP 驗證失敗",
   },
   navigation: {
     collect: "採集",

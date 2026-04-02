@@ -1,0 +1,33 @@
+@startuml C4_Containers
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container Diagram — Open Notebook
+
+Person(user, "User", "Researcher or administrator")
+
+System_Boundary(onSystem, "Open Notebook") {
+    Container(frontend, "Frontend", "Next.js 16 / React 19 / TypeScript", "SPA served on port 8502.\nZustand state, TanStack Query,\nShadcn/ui components, i18n.")
+
+    Container(api, "API Server", "FastAPI / Python 3.11+", "REST endpoints on port 5055.\nAuth middleware, routers, services,\nLangGraph workflows, Esperanto AI provisioning.")
+
+    Container(jobQueue, "Job Queue", "Surreal-Commands", "Async background tasks:\nsource processing, podcast generation,\nembedding creation.")
+
+    ContainerDb(db, "Database", "SurrealDB v2", "Graph DB on port 8000.\nRecords, relationships, vector embeddings,\nfull-text search, schema migrations.")
+
+    ContainerDb(checkpoint, "Checkpoint Store", "SQLite", "LangGraph conversation checkpoints\nfor chat and source-chat graphs.")
+}
+
+System_Ext(ldap, "LDAP Server", "Enterprise directory")
+System_Ext(ai, "AI Providers", "LLM / Embedding / TTS / STT")
+
+Rel(user, frontend, "Browses", "HTTPS")
+Rel(frontend, api, "REST API calls", "HTTP / SSE")
+Rel(api, db, "Queries & mutations", "SurrealQL (WebSocket)")
+Rel(api, jobQueue, "Submits async jobs", "In-process")
+Rel(jobQueue, db, "Reads/writes records", "SurrealQL")
+Rel(jobQueue, ai, "LLM & TTS calls", "HTTPS")
+Rel(api, ai, "LLM, embedding,\nTTS, STT calls", "HTTPS")
+Rel(api, ldap, "Bind & search", "LDAP/LDAPS")
+Rel(api, checkpoint, "Persist chat state", "SQLite file I/O")
+
+@enduml

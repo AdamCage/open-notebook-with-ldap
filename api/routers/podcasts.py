@@ -2,11 +2,12 @@ from pathlib import Path
 from typing import List, Optional
 from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel
 
+from api.auth import get_current_user, get_owner_id
 from api.podcast_service import (
     PodcastGenerationRequest,
     PodcastGenerationResponse,
@@ -39,12 +40,16 @@ def _resolve_audio_path(audio_file: str) -> Path:
 
 
 @router.post("/podcasts/generate", response_model=PodcastGenerationResponse)
-async def generate_podcast(request: PodcastGenerationRequest):
+async def generate_podcast(
+    request: PodcastGenerationRequest,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """
     Generate a podcast episode using Episode Profiles.
     Returns immediately with job ID for status tracking.
     """
     try:
+        owner_id = get_owner_id(user)
         job_id = await PodcastService.submit_generation_job(
             episode_profile_name=request.episode_profile,
             speaker_profile_name=request.speaker_profile,
@@ -52,6 +57,7 @@ async def generate_podcast(request: PodcastGenerationRequest):
             notebook_id=request.notebook_id,
             content=request.content,
             briefing_suffix=request.briefing_suffix,
+            owner=owner_id,
         )
 
         return PodcastGenerationResponse(
@@ -70,7 +76,10 @@ async def generate_podcast(request: PodcastGenerationRequest):
 
 
 @router.get("/podcasts/jobs/{job_id}")
-async def get_podcast_job_status(job_id: str):
+async def get_podcast_job_status(
+    job_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get the status of a podcast generation job"""
     try:
         status_data = await PodcastService.get_job_status(job_id)
@@ -84,10 +93,13 @@ async def get_podcast_job_status(job_id: str):
 
 
 @router.get("/podcasts/episodes", response_model=List[PodcastEpisodeResponse])
-async def list_podcast_episodes():
+async def list_podcast_episodes(
+    user: Optional[dict] = Depends(get_current_user),
+):
     """List all podcast episodes"""
     try:
-        episodes = await PodcastService.list_episodes()
+        owner_id = get_owner_id(user)
+        episodes = await PodcastService.list_episodes(owner=owner_id)
 
         response_episodes = []
         for episode in episodes:
@@ -142,10 +154,16 @@ async def list_podcast_episodes():
 
 
 @router.get("/podcasts/episodes/{episode_id}", response_model=PodcastEpisodeResponse)
-async def get_podcast_episode(episode_id: str):
+async def get_podcast_episode(
+    episode_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get a specific podcast episode"""
     try:
         episode = await PodcastService.get_episode(episode_id)
+        owner_id = get_owner_id(user)
+        if owner_id and episode.owner != owner_id:
+            raise HTTPException(status_code=404, detail="Episode not found")
 
         # Get job status and error message if available
         job_status = None
@@ -188,10 +206,16 @@ async def get_podcast_episode(episode_id: str):
 
 
 @router.get("/podcasts/episodes/{episode_id}/audio")
-async def stream_podcast_episode_audio(episode_id: str):
+async def stream_podcast_episode_audio(
+    episode_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Stream the audio file associated with a podcast episode"""
     try:
         episode = await PodcastService.get_episode(episode_id)
+        owner_id = get_owner_id(user)
+        if owner_id and episode.owner != owner_id:
+            raise HTTPException(status_code=404, detail="Episode not found")
     except HTTPException:
         raise
     except Exception as e:
@@ -213,10 +237,16 @@ async def stream_podcast_episode_audio(episode_id: str):
 
 
 @router.post("/podcasts/episodes/{episode_id}/retry")
-async def retry_podcast_episode(episode_id: str):
+async def retry_podcast_episode(
+    episode_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Retry a failed podcast episode by deleting it and submitting a new job"""
     try:
         episode = await PodcastService.get_episode(episode_id)
+        owner_id = get_owner_id(user)
+        if owner_id and episode.owner != owner_id:
+            raise HTTPException(status_code=404, detail="Episode not found")
 
         # Validate episode is in a failed state
         detail = await episode.get_job_detail()
@@ -256,6 +286,7 @@ async def retry_podcast_episode(episode_id: str):
             speaker_profile_name=sp_profile_name,
             episode_name=episode_name,
             content=content,
+            owner=owner_id,
         )
 
         return {"job_id": job_id, "message": "Retry submitted successfully"}
@@ -270,11 +301,17 @@ async def retry_podcast_episode(episode_id: str):
 
 
 @router.delete("/podcasts/episodes/{episode_id}")
-async def delete_podcast_episode(episode_id: str):
+async def delete_podcast_episode(
+    episode_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Delete a podcast episode and its associated audio file"""
     try:
         # Get the episode first to check if it exists and get the audio file path
         episode = await PodcastService.get_episode(episode_id)
+        owner_id = get_owner_id(user)
+        if owner_id and episode.owner != owner_id:
+            raise HTTPException(status_code=404, detail="Episode not found")
 
         # Delete the physical audio file if it exists
         if episode.audio_file:

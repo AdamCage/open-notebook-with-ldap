@@ -1,0 +1,30 @@
+@startuml C4_Component_Frontend
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram — Frontend
+
+Container_Boundary(fe, "Frontend (Next.js)") {
+
+    Component(pages, "Pages / App Router", "Next.js App Router", "Route-based pages: /notebooks,\n/notebooks/[id], /search, /login,\n/settings, /chat, etc.")
+
+    Component(components, "UI Components", "Shadcn/ui + Tailwind CSS", "Reusable: LoginForm, NotebookCard,\nSourceList, ChatPanel, PodcastPlayer,\nSearchBar, NoteEditor, etc.")
+
+    Component(stores, "State Stores", "Zustand + persist", "auth-store (token, user, LDAP state),\nnotebook-store, ui-store.\nPersisted to localStorage.")
+
+    Component(hooks, "Custom Hooks", "React hooks", "useAuth, useNotebook, useChat,\nuseSearch, usePodcast.\nWrap stores + TanStack Query.")
+
+    Component(apiClient, "API Client", "Axios + fetch", "apiClient with Bearer interceptor.\nldap.ts, notebooks.ts, sources.ts,\nchat.ts, search.ts, podcasts.ts.")
+
+    Component(i18n, "i18n", "Locale files", "9 locales: en-US, ru-RU, zh-CN,\nzh-TW, ja-JP, fr-FR, pt-BR,\nbn-IN, it-IT.")
+}
+
+Component_Ext(apiServer, "API Server", "FastAPI @ :5055")
+
+Rel(pages, components, "Renders")
+Rel(pages, hooks, "Uses")
+Rel(hooks, stores, "Reads / writes state")
+Rel(hooks, apiClient, "Fetches data")
+Rel(components, i18n, "Translates labels")
+Rel(apiClient, apiServer, "REST / SSE", "HTTP")
+
+@enduml

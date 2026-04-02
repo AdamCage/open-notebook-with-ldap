@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getApiUrl } from '@/lib/config'
+import { ldapSignIn } from '@/lib/api/ldap'
+import type { AuthMode } from '@/lib/types/auth'
 
 interface AuthState {
   isAuthenticated: boolean
@@ -11,9 +13,11 @@ interface AuthState {
   isCheckingAuth: boolean
   hasHydrated: boolean
   authRequired: boolean | null
+  ldapEnabled: boolean | null
   setHasHydrated: (state: boolean) => void
   checkAuthRequired: () => Promise<boolean>
   login: (password: string) => Promise<boolean>
+  ldapLogin: (user: string, password: string) => Promise<boolean>
   logout: () => void
   checkAuth: () => Promise<boolean>
 }
@@ -29,6 +33,7 @@ export const useAuthStore = create<AuthState>()(
       isCheckingAuth: false,
       hasHydrated: false,
       authRequired: null,
+      ldapEnabled: null,
 
       setHasHydrated: (state: boolean) => {
         set({ hasHydrated: state })
@@ -47,9 +52,9 @@ export const useAuthStore = create<AuthState>()(
 
           const data = await response.json()
           const required = data.auth_enabled || false
-          set({ authRequired: required })
+          const ldapEnabled = data.ldap_enabled || false
+          set({ authRequired: required, ldapEnabled })
 
-          // If auth is not required, mark as authenticated
           if (!required) {
             set({ isAuthenticated: true, token: 'not-required' })
           }
@@ -58,18 +63,15 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Failed to check auth status:', error)
 
-          // If it's a network error, set a more helpful error message
           if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
             set({
               error: 'Unable to connect to server. Please check if the API is running.',
-              authRequired: null  // Don't assume auth is required if we can't connect
+              authRequired: null
             })
           } else {
-            // For other errors, default to requiring auth to be safe
             set({ authRequired: true })
           }
 
-          // Re-throw the error so the UI can handle it
           throw error
         }
       },
@@ -79,7 +81,6 @@ export const useAuthStore = create<AuthState>()(
         try {
           const apiUrl = await getApiUrl()
 
-          // Test auth with notebooks endpoint
           const response = await fetch(`${apiUrl}/api/notebooks`, {
             method: 'GET',
             headers: {
@@ -138,6 +139,36 @@ export const useAuthStore = create<AuthState>()(
           return false
         }
       },
+
+      ldapLogin: async (user: string, password: string) => {
+        set({ isLoading: true, error: null })
+        try {
+          const data = await ldapSignIn(user, password)
+          set({
+            isAuthenticated: true,
+            token: data.token,
+            isLoading: false,
+            lastAuthCheck: Date.now(),
+            error: null,
+          })
+          return true
+        } catch (error) {
+          console.error('LDAP auth error:', error)
+          let errorMessage = 'ldapAuthFailed'
+
+          if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            errorMessage = 'Unable to connect to server. Please check if the API is running.'
+          }
+
+          set({
+            error: errorMessage,
+            isLoading: false,
+            isAuthenticated: false,
+            token: null,
+          })
+          return false
+        }
+      },
       
       logout: () => {
         set({ 
@@ -151,17 +182,14 @@ export const useAuthStore = create<AuthState>()(
         const state = get()
         const { token, lastAuthCheck, isCheckingAuth, isAuthenticated } = state
 
-        // If already checking, return current auth state
         if (isCheckingAuth) {
           return isAuthenticated
         }
 
-        // If no token, not authenticated
         if (!token) {
           return false
         }
 
-        // If we checked recently (within 30 seconds) and are authenticated, skip
         const now = Date.now()
         if (isAuthenticated && lastAuthCheck && (now - lastAuthCheck) < 30000) {
           return true

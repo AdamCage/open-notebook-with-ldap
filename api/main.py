@@ -133,6 +133,7 @@ app.add_middleware(
         "/openapi.json",
         "/redoc",
         "/api/auth/status",
+        "/api/auth/ldap",
         "/api/config",
     ],
 )

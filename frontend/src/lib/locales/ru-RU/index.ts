@@ -196,6 +196,13 @@ export const ruRU = {
     signingIn: "Вход...",
     signIn: "Войти",
     connectErrorHint: "Не удаётся подключиться к серверу. Проверьте, запущен ли API.",
+    ldapLoginTitle: "Вход через LDAP",
+    ldapLoginDesc: "Введите учётные данные LDAP для доступа к приложению",
+    usernamePlaceholder: "Имя пользователя",
+    continueWithLdap: "Продолжить через LDAP",
+    continueWithPassword: "Продолжить с паролем",
+    authenticating: "Аутентификация...",
+    ldapAuthFailed: "Ошибка LDAP-аутентификации",
   },
   navigation: {
     collect: "Собрать",

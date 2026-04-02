@@ -1,0 +1,49 @@
+@startuml seq_source_ingestion
+title Source Ingestion Flow (Async Path)
+
+actor User
+participant "Frontend" as FE
+participant "POST /sources\n(router)" as Router
+participant "CommandService" as CmdSvc
+participant "Job Queue\n(surreal-commands)" as Queue
+participant "process_source\n(command)" as Cmd
+participant "source_graph\n(LangGraph)" as Graph
+participant "content-core" as CC
+participant "Esperanto\n(AI Provider)" as AI
+participant "SurrealDB" as DB
+
+User -> FE : Upload file / paste URL
+FE -> Router : POST /sources\n(multipart form)
+
+Router -> Router : Verify notebooks ownership\n(owner check)
+Router -> DB : Create Source record\n(title, owner)
+Router -> CmdSvc : submit_command_job\n("process_source", {source_id, content_state, ...})
+CmdSvc -> Queue : Submit command
+Router --> FE : 200 {source_id, command_id,\nstatus: "new"}
+
+Queue -> Cmd : Execute process_source_command
+Cmd -> Graph : ainvoke({content_state, source_id, ...})
+
+Graph -> CC : extract_content(file/URL)
+CC --> Graph : raw text + metadata
+
+Graph -> DB : Update Source\n(full_text, title, topics)
+
+Graph -> AI : generate_embeddings(chunks)
+AI --> Graph : embedding vectors
+
+Graph -> DB : Create SourceEmbedding records\n(chunked vectors)
+
+opt Transformations requested
+    Graph -> AI : Run transformation prompt
+    AI --> Graph : insight content
+    Graph -> DB : Create SourceInsight record
+end
+
+Graph --> Cmd : Success
+Cmd --> Queue : Completed
+
+FE -> Router : GET /sources/{id}/status\n(polling)
+Router --> FE : {status: "completed"}
+
+@enduml

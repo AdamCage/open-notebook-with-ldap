@@ -1,0 +1,21 @@
+@startuml C4_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context Diagram — Open Notebook
+
+Person(user, "Researcher / Knowledge Worker", "Uploads content, creates notes, chats with AI, generates podcasts")
+Person(admin, "Administrator", "Configures AI providers, manages LDAP settings")
+
+System(openNotebook, "Open Notebook", "Privacy-focused AI research assistant.\nOrganises multi-modal content, generates insights,\nprovides semantic search and podcast creation.")
+
+System_Ext(ldapServer, "LDAP / Active Directory", "Enterprise directory service\nfor user authentication")
+System_Ext(aiProviders, "AI Providers", "OpenAI, Anthropic, Google, Groq,\nOllama, Mistral, DeepSeek, xAI, etc.\nLLM, embedding, TTS, STT APIs")
+System_Ext(contentSources, "External Content", "Web pages, uploaded files\n(PDF, DOCX, audio, video)")
+
+Rel(user, openNotebook, "Uses", "HTTPS (browser)")
+Rel(admin, openNotebook, "Configures", "HTTPS (browser)")
+Rel(openNotebook, ldapServer, "Authenticates users", "LDAP/LDAPS (TCP 389/636)")
+Rel(openNotebook, aiProviders, "Sends prompts,\nreceives completions & embeddings", "HTTPS REST")
+Rel(openNotebook, contentSources, "Fetches / processes", "HTTPS / file system")
+
+@enduml

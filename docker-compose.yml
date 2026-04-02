@@ -18,16 +18,31 @@ services:
       - "8502:8502"  # Web UI
       - "5055:5055"  # REST API
     environment:
-      # REQUIRED: Change this to your own secret string
-      # This encrypts your API keys in the database
-      - OPEN_NOTEBOOK_ENCRYPTION_KEY=change-me-to-a-secret-string
+      # REQUIRED: Change this in your .env file
+      - OPEN_NOTEBOOK_ENCRYPTION_KEY=${OPEN_NOTEBOOK_ENCRYPTION_KEY:-change-me-to-a-secret-string}
 
-      # Database connection (default values - no need to change)
-      - SURREAL_URL=ws://surrealdb:8000/rpc
-      - SURREAL_USER=root
-      - SURREAL_PASSWORD=root
-      - SURREAL_NAMESPACE=open_notebook
-      - SURREAL_DATABASE=open_notebook
+      # LDAP Authentication (configure in .env)
+      - ENABLE_LDAP=${ENABLE_LDAP:-false}
+      - LDAP_SERVER_HOST=${LDAP_SERVER_HOST:-localhost}
+      - LDAP_SERVER_PORT=${LDAP_SERVER_PORT:-389}
+      - LDAP_USE_TLS=${LDAP_USE_TLS:-true}
+      - LDAP_VALIDATE_CERT=${LDAP_VALIDATE_CERT:-true}
+      - LDAP_CA_CERT_FILE=${LDAP_CA_CERT_FILE:-}
+      - LDAP_CIPHERS=${LDAP_CIPHERS:-ALL}
+      - LDAP_ATTRIBUTE_FOR_USERNAME=${LDAP_ATTRIBUTE_FOR_USERNAME:-uid}
+      - LDAP_ATTRIBUTE_FOR_MAIL=${LDAP_ATTRIBUTE_FOR_MAIL:-mail}
+      - LDAP_APP_DN=${LDAP_APP_DN:-}
+      - LDAP_APP_PASSWORD=${LDAP_APP_PASSWORD:-}
+      - LDAP_SEARCH_BASE=${LDAP_SEARCH_BASE:-}
+      - LDAP_SEARCH_FILTERS=${LDAP_SEARCH_FILTERS:-}
+      - LDAP_JWT_SECRET=${LDAP_JWT_SECRET:-}
+
+      # Database connection
+      - SURREAL_URL=${SURREAL_URL:-ws://surrealdb:8000/rpc}
+      - SURREAL_USER=${SURREAL_USER:-root}
+      - SURREAL_PASSWORD=${SURREAL_PASSWORD:-root}
+      - SURREAL_NAMESPACE=${SURREAL_NAMESPACE:-open_notebook}
+      - SURREAL_DATABASE=${SURREAL_DATABASE:-open_notebook}
     volumes:
       - ./notebook_data:/app/data
     depends_on:

@@ -196,6 +196,13 @@ export const zhCN = {
     signingIn: "正在登录...",
     signIn: "登录",
     connectErrorHint: "无法连接到服务器。请检查 API 是否正在运行。",
+    ldapLoginTitle: "LDAP 登录",
+    ldapLoginDesc: "输入 LDAP 凭据以访问应用程序",
+    usernamePlaceholder: "用户名",
+    continueWithLdap: "使用 LDAP 继续",
+    continueWithPassword: "使用密码继续",
+    authenticating: "正在验证...",
+    ldapAuthFailed: "LDAP 认证失败",
   },
   navigation: {
     collect: "采集",

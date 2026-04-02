@@ -196,6 +196,13 @@ export const itIT = {
     signingIn: "Accesso in corso...",
     signIn: "Accedi",
     connectErrorHint: "Impossibile connettersi al server. Verifica che l'API sia in esecuzione.",
+    ldapLoginTitle: "Accesso LDAP",
+    ldapLoginDesc: "Inserisci le credenziali LDAP per accedere all'applicazione",
+    usernamePlaceholder: "Nome utente",
+    continueWithLdap: "Continua con LDAP",
+    continueWithPassword: "Continua con la password",
+    authenticating: "Autenticazione...",
+    ldapAuthFailed: "Autenticazione LDAP fallita",
   },
   navigation: {
     collect: "Raccogli",

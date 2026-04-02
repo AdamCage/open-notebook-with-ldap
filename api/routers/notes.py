@@ -1,8 +1,9 @@
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
+from api.auth import get_current_user, get_owner_id
 from api.models import NoteCreate, NoteResponse, NoteUpdate
 from open_notebook.domain.notebook import Note
 from open_notebook.exceptions import InvalidInputError
@@ -13,6 +14,7 @@ router = APIRouter()
 @router.get("/notes", response_model=List[NoteResponse])
 async def get_notes(
     notebook_id: Optional[str] = Query(None, description="Filter by notebook ID"),
+    user: Optional[dict] = Depends(get_current_user),
 ):
     """Get all notes with optional notebook filtering."""
     try:
@@ -23,10 +25,13 @@ async def get_notes(
             notebook = await Notebook.get(notebook_id)
             if not notebook:
                 raise HTTPException(status_code=404, detail="Notebook not found")
+            owner_id = get_owner_id(user)
+            if owner_id and notebook.owner != owner_id:
+                raise HTTPException(status_code=404, detail="Notebook not found")
             notes = await notebook.get_notes()
         else:
             # Get all notes
-            notes = await Note.get_all(order_by="updated desc")
+            notes = await Note.get_all(order_by="updated desc", owner=get_owner_id(user))
 
         return [
             NoteResponse(
@@ -47,7 +52,10 @@ async def get_notes(
 
 
 @router.post("/notes", response_model=NoteResponse)
-async def create_note(note_data: NoteCreate):
+async def create_note(
+    note_data: NoteCreate,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Create a new note."""
     try:
         # Auto-generate title if not provided and it's an AI note
@@ -77,6 +85,7 @@ async def create_note(note_data: NoteCreate):
             title=title,
             content=note_data.content,
             note_type=note_type,
+            owner=get_owner_id(user),
         )
         command_id = await new_note.save()
 
@@ -86,6 +95,9 @@ async def create_note(note_data: NoteCreate):
 
             notebook = await Notebook.get(note_data.notebook_id)
             if not notebook:
+                raise HTTPException(status_code=404, detail="Notebook not found")
+            owner_id = get_owner_id(user)
+            if owner_id and notebook.owner != owner_id:
                 raise HTTPException(status_code=404, detail="Notebook not found")
             await new_note.add_to_notebook(note_data.notebook_id)
 
@@ -108,11 +120,17 @@ async def create_note(note_data: NoteCreate):
 
 
 @router.get("/notes/{note_id}", response_model=NoteResponse)
-async def get_note(note_id: str):
+async def get_note(
+    note_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get a specific note by ID."""
     try:
         note = await Note.get(note_id)
         if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        owner_id = get_owner_id(user)
+        if owner_id and note.owner != owner_id:
             raise HTTPException(status_code=404, detail="Note not found")
 
         return NoteResponse(
@@ -131,11 +149,18 @@ async def get_note(note_id: str):
 
 
 @router.put("/notes/{note_id}", response_model=NoteResponse)
-async def update_note(note_id: str, note_update: NoteUpdate):
+async def update_note(
+    note_id: str,
+    note_update: NoteUpdate,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Update a note."""
     try:
         note = await Note.get(note_id)
         if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        owner_id = get_owner_id(user)
+        if owner_id and note.owner != owner_id:
             raise HTTPException(status_code=404, detail="Note not found")
 
         # Update only provided fields
@@ -172,11 +197,17 @@ async def update_note(note_id: str, note_update: NoteUpdate):
 
 
 @router.delete("/notes/{note_id}")
-async def delete_note(note_id: str):
+async def delete_note(
+    note_id: str,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Delete a note."""
     try:
         note = await Note.get(note_id)
         if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        owner_id = get_owner_id(user)
+        if owner_id and note.owner != owner_id:
             raise HTTPException(status_code=404, detail="Note not found")
 
         await note.delete()

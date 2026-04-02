@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
+from api.auth import get_current_user, get_owner_id
 from api.models import ContextRequest, ContextResponse
 from open_notebook.domain.notebook import Note, Notebook, Source
 from open_notebook.exceptions import InvalidInputError
@@ -10,12 +13,20 @@ router = APIRouter()
 
 
 @router.post("/notebooks/{notebook_id}/context", response_model=ContextResponse)
-async def get_notebook_context(notebook_id: str, context_request: ContextRequest):
+async def get_notebook_context(
+    notebook_id: str,
+    context_request: ContextRequest,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Get context for a notebook based on configuration."""
     try:
         # Verify notebook exists
         notebook = await Notebook.get(notebook_id)
         if not notebook:
+            raise HTTPException(status_code=404, detail="Notebook not found")
+
+        owner_id = get_owner_id(user)
+        if owner_id and notebook.owner != owner_id:
             raise HTTPException(status_code=404, detail="Notebook not found")
 
         context_data: dict[str, list[dict[str, str]]] = {"note": [], "source": []}
@@ -39,6 +50,9 @@ async def get_notebook_context(notebook_id: str, context_request: ContextRequest
                     try:
                         source = await Source.get(full_source_id)
                     except Exception:
+                        continue
+
+                    if owner_id and source.owner != owner_id:
                         continue
 
                     if "insights" in status:
@@ -65,6 +79,9 @@ async def get_notebook_context(notebook_id: str, context_request: ContextRequest
                     )
                     note = await Note.get(full_note_id)
                     if not note:
+                        continue
+
+                    if owner_id and note.owner != owner_id:
                         continue
 
                     if "full content" in status:

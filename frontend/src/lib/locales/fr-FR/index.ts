@@ -196,6 +196,13 @@ export const frFR = {
     signingIn: "Connexion...",
     signIn: "Se connecter",
     connectErrorHint: "Impossible de se connecter au serveur. Veuillez vérifier si l'API est lancée.",
+    ldapLoginTitle: "Connexion LDAP",
+    ldapLoginDesc: "Entrez vos identifiants LDAP pour accéder à l'application",
+    usernamePlaceholder: "Nom d'utilisateur",
+    continueWithLdap: "Continuer avec LDAP",
+    continueWithPassword: "Continuer avec le mot de passe",
+    authenticating: "Authentification...",
+    ldapAuthFailed: "Échec de l'authentification LDAP",
   },
   navigation: {
     collect: "Collecter",

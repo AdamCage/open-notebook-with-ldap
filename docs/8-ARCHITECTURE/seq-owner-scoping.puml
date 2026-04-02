@@ -1,0 +1,62 @@
+@startuml seq_owner_scoping
+title Per-User Data Isolation (Owner Scoping) Flow
+
+actor User
+participant "Frontend" as FE
+participant "Auth Middleware" as MW
+participant "Router\n(e.g. notebooks)" as Router
+participant "get_current_user\nget_owner_id" as AuthDep
+participant "ObjectModel\n(domain)" as Model
+participant "SurrealDB" as DB
+
+== Request with JWT Token ==
+
+User -> FE : Any data request
+FE -> MW : GET /api/notebooks\nAuthorization: Bearer {JWT}
+
+MW -> MW : Decode JWT\nExtract {sub, email, name, type}
+MW -> MW : Set request.state.user = payload
+MW -> Router : Forward request
+
+== Owner Resolution ==
+
+Router -> AuthDep : get_current_user(request)
+AuthDep --> Router : user dict or None
+
+Router -> AuthDep : get_owner_id(user)
+note right
+  Returns user["sub"] for LDAP users,
+  "__password__" for password auth,
+  None when auth is disabled.
+end note
+AuthDep --> Router : owner_id (e.g. "jdoe")
+
+== List Operation (owner-filtered) ==
+
+Router -> Model : Notebook.get_all(\norder_by="updated desc",\nowner=owner_id)
+Model -> DB : SELECT * FROM notebook\nWHERE owner = $owner\nORDER BY updated DESC
+DB --> Model : Filtered results
+Model --> Router : List[Notebook]
+
+== Create Operation (owner-stamped) ==
+
+Router -> Model : Notebook(name=...,\nowner=owner_id)
+Router -> Model : notebook.save()
+Model -> DB : CREATE notebook SET\nname=$name, owner=$owner, ...
+DB --> Model : Created record
+Model --> Router : Notebook with id
+
+== Get by ID (defense-in-depth) ==
+
+Router -> Model : Notebook.get(id,\nowner=owner_id)
+Model -> DB : SELECT * FROM $id
+DB --> Model : Record
+
+alt owner matches or owner=None
+    Model --> Router : Notebook
+else owner mismatch
+    Model --> Router : raise NotFoundError
+    Router --> FE : 404 Not Found
+end
+
+@enduml

@@ -64,6 +64,7 @@ In a world dominated by Artificial Intelligence, having the ability to think �
 - 🔍 **Search intelligently** - Full-text and vector search across all your content
 - 💬 **Chat with context** - AI conversations powered by your research
 - 🌐 **Multi-language UI** - English, Portuguese, Chinese (Simplified & Traditional), Japanese, Russian, and Bengali support
+- 🔐 **Enterprise authentication** - LDAP/Active Directory with per-user data isolation
 
 Learn more about our project at [https://www.open-notebook.ai](https://www.open-notebook.ai)
 
@@ -81,6 +82,7 @@ Learn more about our project at [https://www.open-notebook.ai](https://www.open-
 | **Deployment** | Docker, cloud, or local | Google hosted only | Deploy anywhere |
 | **Citations** | Basic references (will improve) | Comprehensive with sources | Research integrity |
 | **Customization** | Open source, fully customizable | Closed system | Unlimited extensibility |
+| **Authentication** | LDAP + password, per-user isolation | Google account only | Enterprise-ready directory integration |
 | **Cost** | Pay only for AI usage | Free tier + Monthly subscription | Transparent and controllable |
 
 **Why Choose Open Notebook?**
@@ -179,6 +181,21 @@ Done! You're ready to create your first notebook.
 
 ---
 
+### 🔐 Enterprise Authentication (LDAP)
+
+Open Notebook supports LDAP / Active Directory authentication for enterprise environments. Each LDAP user gets their own isolated data space -- notebooks, sources, notes, and chat sessions are private to the authenticated user.
+
+**Quick setup:**
+1. Copy `.env.example` to `.env`
+2. Set `ENABLE_LDAP=true` and configure your LDAP server settings
+3. Restart with `docker compose up -d`
+
+LDAP and password auth can coexist -- the login page shows both options when both are enabled.
+
+See the full **[Security & Authentication Guide](docs/5-CONFIGURATION/security.md)** for Active Directory and OpenLDAP configuration examples.
+
+---
+
 ### 📖 Need Help?
 
 - **🤖 AI Installation Assistant**: [CustomGPT to help you install](https://chatgpt.com/g/g-68776e2765b48191bd1bae3f30212631-open-notebook-installation-assistant)
@@ -233,7 +250,7 @@ Thanks to the [Esperanto](https://github.com/lfnovo/esperanto) library, we suppo
 - **⚡ Reasoning Model Support**: Full support for thinking models like DeepSeek-R1 and Qwen3
 - **🔧 Content Transformations**: Powerful customizable actions to summarize and extract insights
 - **🌐 Comprehensive REST API**: Full programmatic access for custom integrations [![API Docs](https://img.shields.io/badge/API-Documentation-blue?style=flat-square)](http://localhost:5055/docs)
-- **🔐 Optional Password Protection**: Secure public deployments with authentication
+- **🔐 LDAP + Password Authentication**: Enterprise LDAP/Active Directory login with per-user data isolation, plus simple password auth
 - **📊 Fine-Grained Context Control**: Choose exactly what to share with AI models
 - **📎 Citations**: Get answers with proper source citations
 
@@ -264,7 +281,8 @@ Thanks to the [Esperanto](https://github.com/lfnovo/esperanto) library, we suppo
 - **[🤖 AI Models](docs/4-AI-PROVIDERS/index.md)** - AI model configuration
 - **[🔌 MCP Integration](docs/5-CONFIGURATION/mcp-integration.md)** - Connect with Claude Desktop, VS Code and other MCP clients
 - **[🔧 REST API Reference](docs/7-DEVELOPMENT/api-reference.md)** - Complete API documentation
-- **[🔐 Security](docs/5-CONFIGURATION/security.md)** - Password protection and privacy
+- **[🔐 Security](docs/5-CONFIGURATION/security.md)** - LDAP, password authentication, and data isolation
+- **[🏗️ Architecture](docs/8-ARCHITECTURE/index.md)** - C4 diagrams and sequence flows
 - **[🚀 Deployment](docs/1-INSTALLATION/index.md)** - Complete deployment guides for all scenarios
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -278,6 +296,8 @@ Thanks to the [Esperanto](https://github.com/lfnovo/esperanto) library, we suppo
 - **Bookmark Integration**: Connect with your favorite bookmarking apps
 
 ### Recently Completed ✅
+- **LDAP Authentication**: Enterprise directory login with JWT tokens and per-user data isolation
+- **Per-User Data Isolation**: Owner-scoped records across notebooks, sources, notes, chat, podcasts, and search
 - **Next.js Frontend**: Modern React-based frontend with improved performance
 - **Comprehensive REST API**: Full programmatic access to all functionality
 - **Multi-Model Support**: 16+ AI providers including OpenAI, Anthropic, Ollama, LM Studio

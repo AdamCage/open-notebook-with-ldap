@@ -1,7 +1,9 @@
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from api.auth import get_current_user, get_owner_id
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
@@ -15,9 +17,14 @@ router = APIRouter()
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search_knowledge_base(search_request: SearchRequest):
+async def search_knowledge_base(
+    search_request: SearchRequest,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Search the knowledge base using text or vector search."""
     try:
+        owner_id = get_owner_id(user)
+
         if search_request.type == "vector":
             # Check if embedding model is available for vector search
             if not await model_manager.get_embedding_model():
@@ -32,6 +39,7 @@ async def search_knowledge_base(search_request: SearchRequest):
                 source=search_request.search_sources,
                 note=search_request.search_notes,
                 minimum_score=search_request.minimum_score,
+                owner=owner_id,
             )
         else:
             # Text search
@@ -40,6 +48,7 @@ async def search_knowledge_base(search_request: SearchRequest):
                 results=search_request.limit,
                 source=search_request.search_sources,
                 note=search_request.search_notes,
+                owner=owner_id,
             )
 
         return SearchResponse(
@@ -59,7 +68,11 @@ async def search_knowledge_base(search_request: SearchRequest):
 
 
 async def stream_ask_response(
-    question: str, strategy_model: Model, answer_model: Model, final_answer_model: Model
+    question: str,
+    strategy_model: Model,
+    answer_model: Model,
+    final_answer_model: Model,
+    owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """Stream the ask response as Server-Sent Events."""
     try:
@@ -72,6 +85,7 @@ async def stream_ask_response(
                     strategy_model=strategy_model.id,
                     answer_model=answer_model.id,
                     final_answer_model=final_answer_model.id,
+                    owner=owner,
                 )
             ),
             stream_mode="updates",
@@ -111,9 +125,13 @@ async def stream_ask_response(
 
 
 @router.post("/search/ask")
-async def ask_knowledge_base(ask_request: AskRequest):
+async def ask_knowledge_base(
+    ask_request: AskRequest,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Ask the knowledge base a question using AI models."""
     try:
+        owner_id = get_owner_id(user)
         # Validate models exist
         strategy_model = await Model.get(ask_request.strategy_model)
         answer_model = await Model.get(ask_request.answer_model)
@@ -145,7 +163,8 @@ async def ask_knowledge_base(ask_request: AskRequest):
         # For streaming response
         return StreamingResponse(
             stream_ask_response(
-                ask_request.question, strategy_model, answer_model, final_answer_model
+                ask_request.question, strategy_model, answer_model, final_answer_model,
+                owner=owner_id,
             ),
             media_type="text/plain",
         )
@@ -158,9 +177,13 @@ async def ask_knowledge_base(ask_request: AskRequest):
 
 
 @router.post("/search/ask/simple", response_model=AskResponse)
-async def ask_knowledge_base_simple(ask_request: AskRequest):
+async def ask_knowledge_base_simple(
+    ask_request: AskRequest,
+    user: Optional[dict] = Depends(get_current_user),
+):
     """Ask the knowledge base a question and return a simple response (non-streaming)."""
     try:
+        owner_id = get_owner_id(user)
         # Validate models exist
         strategy_model = await Model.get(ask_request.strategy_model)
         answer_model = await Model.get(ask_request.answer_model)
@@ -198,6 +221,7 @@ async def ask_knowledge_base_simple(ask_request: AskRequest):
                     strategy_model=strategy_model.id,
                     answer_model=answer_model.id,
                     final_answer_model=final_answer_model.id,
+                    owner=owner_id,
                 )
             ),
             stream_mode="updates",

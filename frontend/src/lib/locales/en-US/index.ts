@@ -196,6 +196,13 @@ export const enUS = {
     signingIn: "Signing in...",
     signIn: "Sign In",
     connectErrorHint: "Unable to connect to server. Please check if the API is running.",
+    ldapLoginTitle: "LDAP Sign In",
+    ldapLoginDesc: "Enter your LDAP credentials to access the application",
+    usernamePlaceholder: "Username",
+    continueWithLdap: "Continue with LDAP",
+    continueWithPassword: "Continue with Password",
+    authenticating: "Authenticating...",
+    ldapAuthFailed: "LDAP authentication failed",
   },
   navigation: {
     collect: "Collect",
