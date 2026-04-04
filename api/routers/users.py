@@ -10,7 +10,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from api.auth import get_current_user, invalidate_user_status_cache
-from api.auth_config import is_multi_user, require_admin, require_super_admin
+from api.auth_config import is_multi_user, require_admin
 from open_notebook.domain.app_user import AppUser
 from open_notebook.exceptions import ForbiddenError, InvalidInputError, NotFoundError
 
@@ -170,10 +170,10 @@ async def update_user_role(
     body: RoleUpdateRequest,
     user: Optional[dict] = Depends(get_current_user),
 ):
-    """Change a user's role. Super-admin only."""
+    """Change a user's role. Admin only. Super-admin role cannot be changed."""
     if not is_multi_user():
         raise InvalidInputError("User management is not available in this auth mode")
-    require_super_admin(user)
+    require_admin(user)
 
     if body.role not in ("admin", "user"):
         raise InvalidInputError("Role must be 'admin' or 'user'")

@@ -76,20 +76,30 @@ make api
 # or: uv run --env-file .env uvicorn api.main:app --host 0.0.0.0 --port 5055
 ```
 
-### 6. Start Frontend
+### 6. Start Background Worker
+
+The worker processes async jobs (source ingestion, embedding, podcasts). Without it, uploaded sources stay in "Processing..." forever.
 
 ```bash
 # Terminal 3
+make worker
+# or: uv run --env-file .env surreal-commands-worker --import-modules commands
+```
+
+### 7. Start Frontend
+
+```bash
+# Terminal 4
 cd frontend && npm install && npm run dev
 ```
 
-### 7. Access
+### 8. Access
 
 - **Frontend**: http://localhost:3000
 - **API Docs**: http://localhost:5055/docs
 - **Database**: http://localhost:8000
 
-### 8. Configure AI Provider
+### 9. Configure AI Provider
 
 1. Open http://localhost:3000
 2. Go to **Settings** → **API Keys**

@@ -37,7 +37,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { useTranslation } from '@/lib/hooks/use-translation'
-import { CheckCircle, XCircle, ShieldCheck, ShieldOff, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, ShieldCheck, ShieldOff, AlertTriangle } from 'lucide-react'
 import type { UserProfile } from '@/lib/types/auth'
 
 export default function AdminUsersPage() {
@@ -45,7 +45,7 @@ export default function AdminUsersPage() {
   const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
   const { user: currentUser, isAdmin, authMode } = useAuthStore()
-  const isSuperAdmin = currentUser?.role === 'super_admin'
+  const canManageRoles = isAdmin
 
   const needsGuard = (authMode === 'local' || authMode === 'ldap') && !isAdmin
   if (needsGuard) {
@@ -111,10 +111,22 @@ export default function AdminUsersPage() {
     <div className="container mx-auto py-6 px-4 max-w-6xl">
       <Card>
         <CardHeader>
-          <CardTitle>{admin.usersTitle || 'User Management'}</CardTitle>
-          <CardDescription>
-            {admin.usersDesc || 'Manage user accounts, approvals, and roles.'}
-          </CardDescription>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.back()}
+              aria-label="Back"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <CardTitle>{admin.usersTitle || 'User Management'}</CardTitle>
+              <CardDescription>
+                {admin.usersDesc || 'Manage user accounts, approvals, and roles.'}
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4 flex items-center gap-4">
@@ -195,7 +207,7 @@ export default function AdminUsersPage() {
                             <CheckCircle className="h-4 w-4 text-green-600" />
                           </Button>
                         )}
-                        {isSuperAdmin && u.role !== 'super_admin' && (
+                        {canManageRoles && u.role !== 'super_admin' && (
                           <>
                             {u.role === 'user' ? (
                               <Button

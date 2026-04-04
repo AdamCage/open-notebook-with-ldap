@@ -127,9 +127,9 @@ async def save_source(state: SourceState) -> dict:
     return {"source": source}
 
 
-def trigger_transformations(state: SourceState, config: RunnableConfig) -> List[Send]:
+def trigger_transformations(state: SourceState, config: RunnableConfig):
     if len(state["apply_transformations"]) == 0:
-        return []
+        return END
 
     to_apply = state["apply_transformations"]
     logger.debug(f"Applying transformations {to_apply}")
@@ -179,7 +179,7 @@ workflow.add_node("transform_content", transform_content)
 workflow.add_edge(START, "content_process")
 workflow.add_edge("content_process", "save_source")
 workflow.add_conditional_edges(
-    "save_source", trigger_transformations, ["transform_content"]
+    "save_source", trigger_transformations, ["transform_content", END]
 )
 workflow.add_edge("transform_content", END)
 

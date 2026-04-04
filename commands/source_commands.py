@@ -8,7 +8,7 @@ from surreal_commands import CommandInput, CommandOutput, command
 from open_notebook.database.repository import ensure_record_id
 from open_notebook.domain.notebook import Source
 from open_notebook.domain.transformation import Transformation
-from open_notebook.exceptions import ConfigurationError
+from open_notebook.exceptions import ConfigurationError, InvalidInputError, NotFoundError
 
 try:
     from open_notebook.graphs.source import source_graph
@@ -54,8 +54,8 @@ class SourceProcessingOutput(CommandOutput):
         "wait_strategy": "exponential_jitter",
         "wait_min": 1,
         "wait_max": 120,  # Allow queue to drain
-        "stop_on": [ValueError, ConfigurationError],  # Don't retry validation/config errors
-        "retry_log_level": "debug",  # Avoid log noise during transaction conflicts
+        "stop_on": [ValueError, ConfigurationError, NotFoundError, InvalidInputError],
+        "retry_log_level": "warning",  # Surface retry attempts for diagnosis
     },
 )
 async def process_source_command(
@@ -84,9 +84,11 @@ async def process_source_command(
         logger.info(f"Loaded {len(transformations)} transformations")
 
         # 2. Get existing source record to update its command field
+        logger.info(f"Fetching source record: {input_data.source_id}")
         source = await Source.get(input_data.source_id)
         if not source:
             raise ValueError(f"Source '{input_data.source_id}' not found")
+        logger.info(f"Source record loaded: {source.id}")
 
         # Update source with command reference
         source.command = (
@@ -94,6 +96,7 @@ async def process_source_command(
             if input_data.execution_context
             else None
         )
+        logger.info(f"Saving command reference for source {source.id}")
         await source.save()
 
         logger.info(f"Updated source {source.id} with command reference")
@@ -102,6 +105,7 @@ async def process_source_command(
         logger.info(f"Processing source with {len(input_data.notebook_ids)} notebooks")
 
         # Execute source_graph with all notebooks
+        logger.info(f"Invoking source_graph for {input_data.source_id}")
         result = await source_graph.ainvoke(
             {  # type: ignore[arg-type]
                 "content_state": input_data.content_state,
@@ -112,6 +116,7 @@ async def process_source_command(
             }
         )
 
+        logger.info(f"source_graph completed for {input_data.source_id}")
         processed_source = result["source"]
 
         # 4. Gather processing results (notebook associations handled by source_graph)
@@ -150,8 +155,9 @@ async def process_source_command(
         )
     except Exception as e:
         # Transient failure - will be retried (surreal-commands logs final failure)
-        logger.debug(
-            f"Transient error processing source {input_data.source_id}: {e}"
+        logger.warning(
+            f"Transient error processing source {input_data.source_id}: "
+            f"{type(e).__name__}: {e}"
         )
         raise
 
@@ -186,8 +192,8 @@ class RunTransformationOutput(CommandOutput):
         "wait_strategy": "exponential_jitter",
         "wait_min": 1,
         "wait_max": 60,
-        "stop_on": [ValueError, ConfigurationError],  # Don't retry validation/config errors
-        "retry_log_level": "debug",
+        "stop_on": [ValueError, ConfigurationError, NotFoundError, InvalidInputError],
+        "retry_log_level": "warning",  # Surface retry attempts for diagnosis
     },
 )
 async def run_transformation_command(
@@ -263,8 +269,8 @@ async def run_transformation_command(
         )
     except Exception as e:
         # Transient failure - will be retried (surreal-commands logs final failure)
-        logger.debug(
+        logger.warning(
             f"Transient error running transformation {input_data.transformation_id} "
-            f"on source {input_data.source_id}: {e}"
+            f"on source {input_data.source_id}: {type(e).__name__}: {e}"
         )
         raise
