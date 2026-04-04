@@ -1,0 +1,17 @@
+-- Migration 16: Add app_user table for local user management and RBAC
+
+DEFINE TABLE IF NOT EXISTS app_user SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS username ON TABLE app_user TYPE string;
+DEFINE FIELD IF NOT EXISTS email ON TABLE app_user TYPE string;
+DEFINE FIELD IF NOT EXISTS display_name ON TABLE app_user TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS password_hash ON TABLE app_user TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS role ON TABLE app_user TYPE string DEFAULT 'user';
+DEFINE FIELD IF NOT EXISTS status ON TABLE app_user TYPE string DEFAULT 'pending';
+DEFINE FIELD IF NOT EXISTS auth_provider ON TABLE app_user TYPE string DEFAULT 'local';
+DEFINE FIELD IF NOT EXISTS created ON TABLE app_user TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS updated ON TABLE app_user TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS last_login ON TABLE app_user TYPE option<datetime>;
+
+DEFINE INDEX IF NOT EXISTS idx_app_user_username ON TABLE app_user COLUMNS username UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_app_user_email ON TABLE app_user COLUMNS email UNIQUE;
+DEFINE INDEX IF NOT EXISTS idx_app_user_status ON TABLE app_user COLUMNS status;

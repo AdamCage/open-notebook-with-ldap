@@ -64,7 +64,7 @@ In a world dominated by Artificial Intelligence, having the ability to think �
 - 🔍 **Search intelligently** - Full-text and vector search across all your content
 - 💬 **Chat with context** - AI conversations powered by your research
 - 🌐 **Multi-language UI** - English, Portuguese, Chinese (Simplified & Traditional), Japanese, Russian, and Bengali support
-- 🔐 **Enterprise authentication** - LDAP/Active Directory with per-user data isolation
+- 🔐 **Flexible authentication** - Four auth modes (open, password, local accounts, LDAP/AD) with role-based access control and per-user data isolation
 
 Learn more about our project at [https://www.open-notebook.ai](https://www.open-notebook.ai)
 
@@ -82,7 +82,7 @@ Learn more about our project at [https://www.open-notebook.ai](https://www.open-
 | **Deployment** | Docker, cloud, or local | Google hosted only | Deploy anywhere |
 | **Citations** | Basic references (will improve) | Comprehensive with sources | Research integrity |
 | **Customization** | Open source, fully customizable | Closed system | Unlimited extensibility |
-| **Authentication** | LDAP + password, per-user isolation | Google account only | Enterprise-ready directory integration |
+| **Authentication** | 4 modes (open/password/local/LDAP), RBAC, admin panel, per-user isolation | Google account only | Enterprise-ready with flexible auth and role management |
 | **Cost** | Pay only for AI usage | Free tier + Monthly subscription | Transparent and controllable |
 
 **Why Choose Open Notebook?**
@@ -181,18 +181,39 @@ Done! You're ready to create your first notebook.
 
 ---
 
-### 🔐 Enterprise Authentication (LDAP)
+### 🔐 Authentication and Access Control
 
-Open Notebook supports LDAP / Active Directory authentication for enterprise environments. Each LDAP user gets their own isolated data space -- notebooks, sources, notes, and chat sessions are private to the authenticated user.
+Open Notebook supports four authentication modes to fit any deployment scenario:
 
-**Quick setup:**
-1. Copy `.env.example` to `.env`
-2. Set `ENABLE_LDAP=true` and configure your LDAP server settings
-3. Restart with `docker compose up -d`
+| Mode | Use Case | User Isolation | RBAC |
+|------|----------|----------------|------|
+| **none** (default) | Local development, single user | No | No |
+| **password** | Simple shared deployments | No | No |
+| **local** | Multi-user with self-registration | Yes | Yes |
+| **ldap** | Enterprise with LDAP/Active Directory | Yes | Yes |
 
-LDAP and password auth can coexist -- the login page shows both options when both are enabled.
+In **local** and **ldap** modes, a full role-based access control system is available:
+- **Super Admin** (configured via `ADMIN_USERNAME` in `.env`) can manage users and grant/revoke admin roles
+- **Admins** can configure AI models, credentials, settings, and transformations
+- **Regular users** can only create and work within their own notebooks
+- Admins **cannot** view other users' notebooks -- data isolation is enforced for all roles
 
-See the full **[Security & Authentication Guide](docs/5-CONFIGURATION/security.md)** for Active Directory and OpenLDAP configuration examples.
+**Quick setup (local auth):**
+```bash
+AUTH_MODE=local
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=changeme
+```
+
+**Quick setup (LDAP):**
+```bash
+AUTH_MODE=ldap
+ADMIN_USERNAME=admin
+ENABLE_LDAP=true
+# ... LDAP server settings
+```
+
+See the full **[Security & Authentication Guide](docs/5-CONFIGURATION/security.md)** for detailed configuration, RBAC documentation, and Active Directory / OpenLDAP examples.
 
 ---
 
@@ -250,7 +271,7 @@ Thanks to the [Esperanto](https://github.com/lfnovo/esperanto) library, we suppo
 - **⚡ Reasoning Model Support**: Full support for thinking models like DeepSeek-R1 and Qwen3
 - **🔧 Content Transformations**: Powerful customizable actions to summarize and extract insights
 - **🌐 Comprehensive REST API**: Full programmatic access for custom integrations [![API Docs](https://img.shields.io/badge/API-Documentation-blue?style=flat-square)](http://localhost:5055/docs)
-- **🔐 LDAP + Password Authentication**: Enterprise LDAP/Active Directory login with per-user data isolation, plus simple password auth
+- **🔐 Multi-Mode Authentication & RBAC**: Four auth modes (none/password/local/LDAP), role-based access control with admin panel, and per-user data isolation
 - **📊 Fine-Grained Context Control**: Choose exactly what to share with AI models
 - **📎 Citations**: Get answers with proper source citations
 
@@ -281,7 +302,7 @@ Thanks to the [Esperanto](https://github.com/lfnovo/esperanto) library, we suppo
 - **[🤖 AI Models](docs/4-AI-PROVIDERS/index.md)** - AI model configuration
 - **[🔌 MCP Integration](docs/5-CONFIGURATION/mcp-integration.md)** - Connect with Claude Desktop, VS Code and other MCP clients
 - **[🔧 REST API Reference](docs/7-DEVELOPMENT/api-reference.md)** - Complete API documentation
-- **[🔐 Security](docs/5-CONFIGURATION/security.md)** - LDAP, password authentication, and data isolation
+- **[🔐 Security](docs/5-CONFIGURATION/security.md)** - Authentication modes, RBAC, LDAP, and data isolation
 - **[🏗️ Architecture](docs/8-ARCHITECTURE/index.md)** - C4 diagrams and sequence flows
 - **[🚀 Deployment](docs/1-INSTALLATION/index.md)** - Complete deployment guides for all scenarios
 
@@ -296,7 +317,7 @@ Thanks to the [Esperanto](https://github.com/lfnovo/esperanto) library, we suppo
 - **Bookmark Integration**: Connect with your favorite bookmarking apps
 
 ### Recently Completed ✅
-- **LDAP Authentication**: Enterprise directory login with JWT tokens and per-user data isolation
+- **Multi-Mode Auth & RBAC**: Four authentication modes (none/password/local/LDAP) with role-based access control, admin panel for user management, and registration approval workflow
 - **Per-User Data Isolation**: Owner-scoped records across notebooks, sources, notes, chat, podcasts, and search
 - **Next.js Frontend**: Modern React-based frontend with improved performance
 - **Comprehensive REST API**: Full programmatic access to all functionality

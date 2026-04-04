@@ -48,6 +48,8 @@ Behavioral flows for all major processes in the system.
 
 **[seq-ldap-auth.puml](seq-ldap-auth.puml)** -- Full LDAP authentication flow: TLS configuration, application bind, user search with escaped filter, user bind for password verification, JWT token creation, and the i18n error mapping in the frontend.
 
+**[seq-local-auth.puml](seq-local-auth.puml)** -- Local account authentication flow (`AUTH_MODE=local`): user self-registration with pending status, admin approval workflow, bcrypt password verification, JWT session token issuance, and the middleware's cached database status check for active user enforcement.
+
 ### Core Workflows
 
 **[seq-source-ingestion.puml](seq-source-ingestion.puml)** -- Async source processing: file upload or URL submission, async command submission via Surreal-Commands, the `source_graph` LangGraph workflow (content extraction, embedding generation, optional transformations), and status polling.

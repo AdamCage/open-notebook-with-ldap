@@ -16,6 +16,7 @@ from open_notebook.exceptions import (
     AuthenticationError,
     ConfigurationError,
     ExternalServiceError,
+    ForbiddenError,
     InvalidInputError,
     NetworkError,
     NotFoundError,
@@ -43,6 +44,7 @@ from api.routers import (
     sources,
     speaker_profiles,
     transformations,
+    users,
 )
 from api.routers import commands as commands_router
 from open_notebook.database.async_migrate import AsyncMigrationManager
@@ -53,6 +55,44 @@ try:
     logger.info("Commands imported in API process")
 except Exception as e:
     logger.error(f"Failed to import commands in API process: {e}")
+
+
+async def _bootstrap_super_admin():
+    """Create the super-admin account on first startup (AUTH_MODE=local)."""
+    import os
+
+    from open_notebook.domain.app_user import AppUser
+
+    admin_username = os.environ.get("ADMIN_USERNAME", "").strip()
+    admin_password = get_secret_from_env("ADMIN_PASSWORD") or ""
+
+    if not admin_username or not admin_password:
+        logger.warning(
+            "AUTH_MODE=local but ADMIN_USERNAME / ADMIN_PASSWORD not set. "
+            "Super-admin will not be created automatically."
+        )
+        return
+
+    existing = await AppUser.get_by_username(admin_username)
+    if existing:
+        if existing.role != "super_admin":
+            existing.role = "super_admin"
+            existing.status = "active"
+            await existing.save()
+            logger.info("Promoted existing user '%s' to super_admin", admin_username)
+        return
+
+    admin = AppUser(
+        username=admin_username,
+        email=f"{admin_username}@local",
+        display_name="Administrator",
+        role="super_admin",
+        status="active",
+        auth_provider="local",
+    )
+    admin.set_password(admin_password)
+    await admin.save()
+    logger.success("Created super-admin account '%s'", admin_username)
 
 
 @asynccontextmanager
@@ -107,6 +147,22 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Podcast profile migration encountered errors: {e}")
         # Non-fatal: profiles can be migrated manually via UI
 
+    # Bootstrap super-admin for local/ldap auth modes
+    from api.auth_config import get_auth_mode
+
+    auth_mode = get_auth_mode()
+    if auth_mode in ("local", "ldap"):
+        password_env = get_secret_from_env("OPEN_NOTEBOOK_PASSWORD")
+        if password_env:
+            logger.warning(
+                "OPEN_NOTEBOOK_PASSWORD is set but AUTH_MODE=%s — "
+                "shared password auth is disabled in multi-user mode.",
+                auth_mode,
+            )
+
+    if auth_mode == "local":
+        await _bootstrap_super_admin()
+
     logger.success("API initialization completed successfully")
 
     # Yield control to the application
@@ -134,6 +190,8 @@ app.add_middleware(
         "/redoc",
         "/api/auth/status",
         "/api/auth/ldap",
+        "/api/auth/register",
+        "/api/auth/login",
         "/api/config",
     ],
 )
@@ -198,6 +256,15 @@ async def not_found_error_handler(request: Request, exc: NotFoundError):
 async def invalid_input_error_handler(request: Request, exc: InvalidInputError):
     return JSONResponse(
         status_code=400,
+        content={"detail": str(exc)},
+        headers=_cors_headers(request),
+    )
+
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_error_handler(request: Request, exc: ForbiddenError):
+    return JSONResponse(
+        status_code=403,
         content={"detail": str(exc)},
         headers=_cors_headers(request),
     )
@@ -281,6 +348,7 @@ app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(source_chat.router, prefix="/api", tags=["source-chat"])
 app.include_router(credentials.router, prefix="/api", tags=["credentials"])
 app.include_router(languages.router, prefix="/api", tags=["languages"])
+app.include_router(users.router, prefix="/api", tags=["users"])
 
 
 @app.get("/")

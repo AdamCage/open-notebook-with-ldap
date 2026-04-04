@@ -12,14 +12,21 @@ export function useAuth() {
     isAuthenticated,
     isLoading,
     login,
+    localLogin,
     ldapLogin,
+    register,
     logout,
     checkAuth,
     checkAuthRequired,
+    fetchProfile,
     error,
     hasHydrated,
     authRequired,
-    ldapEnabled
+    ldapEnabled,
+    authMode,
+    registrationEnabled,
+    user,
+    isAdmin,
   } = useAuthStore()
 
   useEffect(() => {
@@ -55,6 +62,14 @@ export function useAuth() {
     return success
   }
 
+  const handleLocalLogin = async (username: string, password: string) => {
+    const success = await localLogin(username, password)
+    if (success) {
+      redirectAfterAuth()
+    }
+    return success
+  }
+
   const handleLdapLogin = async (user: string, password: string) => {
     const success = await ldapLogin(user, password)
     if (success) {
@@ -68,6 +83,15 @@ export function useAuth() {
     return success
   }
 
+  const handleRegister = async (
+    username: string,
+    email: string,
+    password: string,
+    displayName?: string
+  ) => {
+    return register(username, email, password, displayName)
+  }
+
   const handleLogout = () => {
     logout()
     router.push('/login')
@@ -78,8 +102,15 @@ export function useAuth() {
     isLoading: isLoading || !hasHydrated,
     error,
     ldapEnabled,
+    authMode,
+    registrationEnabled,
+    user,
+    isAdmin,
     login: handleLogin,
+    localLogin: handleLocalLogin,
     ldapLogin: handleLdapLogin,
-    logout: handleLogout
+    register: handleRegister,
+    fetchProfile,
+    logout: handleLogout,
   }
 }

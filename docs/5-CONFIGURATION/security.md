@@ -1,6 +1,144 @@
 # Security Configuration
 
-Protect your Open Notebook deployment with password authentication and production hardening.
+Protect your Open Notebook deployment with authentication, role-based access control, and production hardening.
+
+---
+
+## Authentication Modes
+
+Open Notebook supports four authentication modes, configured via the `AUTH_MODE` environment variable:
+
+| Mode | `AUTH_MODE` | User Accounts | RBAC | Data Isolation | Best For |
+|------|-------------|---------------|------|----------------|----------|
+| **Open** | `none` (default) | No | No | No | Local development, single user |
+| **Shared Password** | `password` | No | No | No | Simple deployments with basic protection |
+| **Local Accounts** | `local` | Yes | Yes | Yes | Multi-user teams without LDAP |
+| **LDAP / Active Directory** | `ldap` | Yes (auto-created) | Yes | Yes | Enterprise environments |
+
+!!! warning
+    In `none` and `password` modes, **all role-based access controls are disabled**. Every user has full admin-level access. Use `local` or `ldap` mode for real multi-user security.
+
+### Quick Start by Mode
+
+**Open access (default):**
+```bash
+# No configuration needed -- this is the default
+AUTH_MODE=none
+```
+
+**Shared password:**
+```bash
+AUTH_MODE=password
+OPEN_NOTEBOOK_PASSWORD=your_secure_password
+```
+
+**Local accounts with RBAC:**
+```bash
+AUTH_MODE=local
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=changeme
+JWT_SECRET=your-random-jwt-secret
+```
+
+**LDAP with RBAC:**
+```bash
+AUTH_MODE=ldap
+ADMIN_USERNAME=admin
+ENABLE_LDAP=true
+JWT_SECRET=your-random-jwt-secret
+# ... LDAP server settings (see LDAP section below)
+```
+
+### Mode Interactions
+
+- `AUTH_MODE=local` and `AUTH_MODE=ldap` are **mutually exclusive** with `OPEN_NOTEBOOK_PASSWORD`. If `AUTH_MODE` is set to `local` or `ldap`, the shared password mechanism is ignored.
+- When `AUTH_MODE=ldap`, users are automatically registered in the `app_user` table upon their first successful LDAP login.
+- When `AUTH_MODE=local`, users self-register and must wait for an administrator to approve their account before gaining access.
+
+---
+
+## Role-Based Access Control (RBAC)
+
+RBAC is active only in `local` and `ldap` modes. Three roles are available:
+
+| Role | Scope | Capabilities |
+|------|-------|-------------|
+| **super_admin** | System-wide | Manage users (approve, deactivate, promote/demote), all admin capabilities |
+| **admin** | System-wide (config only) | Configure AI models, credentials, settings, transformations |
+| **user** | Own data only | Create and work within own notebooks, sources, notes, chat |
+
+### Key Principles
+
+- **Data isolation is absolute**: admins and super_admins **cannot** view, edit, or delete other users' notebooks, sources, notes, or chat sessions. Every record is scoped to its owner.
+- **Admin panel access**: only `admin` and `super_admin` roles can access the Settings, Models, Credentials, and Transformations pages.
+- **User management**: only `super_admin` can view the user list, approve registrations, and change user roles.
+
+### Bootstrapping the Super Admin
+
+The initial super administrator is created automatically on first API startup when `AUTH_MODE=local`:
+
+```bash
+ADMIN_USERNAME=admin        # Required: the super-admin username
+ADMIN_PASSWORD=changeme     # Required for local mode: initial password
+```
+
+- If the user already exists, the startup process skips creation.
+- For `AUTH_MODE=ldap`, only `ADMIN_USERNAME` is needed; the password comes from LDAP.
+- Change the default password immediately after first login.
+
+---
+
+## User Registration and Approval
+
+### Local Mode (`AUTH_MODE=local`)
+
+1. A new user visits the login page and clicks **Register**
+2. They fill in username, email, and password (min 6 characters)
+3. The account is created with status `pending`
+4. The user sees a "Your account is awaiting approval" page
+5. A super admin navigates to **Admin > Users** and approves the account
+6. The user can now log in normally
+
+### LDAP Mode (`AUTH_MODE=ldap`)
+
+1. A user logs in with their LDAP credentials
+2. On first successful LDAP authentication, an `app_user` record is auto-created with status `active`
+3. No manual approval is needed -- LDAP itself serves as the identity provider
+
+### User Lifecycle
+
+```
+[Register/LDAP Login] → pending* → active → deactivated
+                                      ↑          ↓
+                                      └──────────┘ (re-activate)
+
+* LDAP users skip the pending state
+```
+
+- **Deactivation**: a super admin can deactivate any user. The user's data is preserved but they cannot log in.
+- **Re-activation**: a super admin can re-activate a deactivated user.
+- **Self-service**: local users can change their own password and profile. LDAP users cannot (their identity is managed externally).
+
+---
+
+## JWT Secret Configuration
+
+In `local` and `ldap` modes, session tokens are signed JWTs. The signing secret is resolved with the following priority:
+
+| Priority | Variable | Notes |
+|----------|----------|-------|
+| 1 (highest) | `JWT_SECRET` | Dedicated secret for JWT signing |
+| 2 | `LDAP_JWT_SECRET` | Legacy variable, still supported |
+| 3 (fallback) | `OPEN_NOTEBOOK_ENCRYPTION_KEY` | Used if neither of the above is set |
+
+**Production recommendation**: always set a dedicated `JWT_SECRET` that is different from your encryption key:
+
+```bash
+JWT_SECRET=$(openssl rand -base64 32)
+```
+
+- Tokens expire after **24 hours**; users must re-authenticate.
+- The middleware performs a cached database check (60-second TTL) to verify the user is still `active` on each request.
 
 ---
 
@@ -290,16 +428,15 @@ See [Reverse Proxy Configuration](reverse-proxy.md) for complete nginx/Caddy/Tra
 
 ## Security Limitations
 
-Open Notebook's password protection provides **basic access control**, not enterprise-grade security:
-
-| Feature | Status |
-|---------|--------|
-| Password transmission | Plain text (use HTTPS!) |
-| Password storage | In memory |
-| User management | Single password for all |
-| Session timeout | None (until browser close) |
-| Rate limiting | None |
-| Audit logging | None |
+| Feature | `none` / `password` modes | `local` / `ldap` modes |
+|---------|--------------------------|----------------------|
+| Password transmission | Plain text (use HTTPS!) | Plain text (use HTTPS!) |
+| Password storage | In memory / not applicable | Bcrypt hash in database |
+| User management | None / single shared password | Per-user accounts with roles |
+| Session tokens | None | JWT (24h expiry, DB-backed status check) |
+| Data isolation | None | Owner-scoped (enforced at DB layer) |
+| Rate limiting | None | None |
+| Audit logging | None | None |
 
 ### Risk Mitigation
 
@@ -316,14 +453,17 @@ Open Notebook's password protection provides **basic access control**, not enter
 
 For deployments requiring advanced security:
 
-| Need | Solution |
-|------|----------|
-| SSO/OAuth | Implement OAuth2/SAML proxy |
-| Role-based access | Custom middleware |
-| Audit logging | Log aggregation service |
-| Rate limiting | API gateway or nginx |
-| Data encryption | Encrypt volumes at rest |
-| Network segmentation | Docker networks, VPC |
+| Need | Built-in | Additional Steps |
+|------|----------|-----------------|
+| Multi-user accounts | Yes (`local` or `ldap` mode) | -- |
+| Role-based access | Yes (super_admin / admin / user) | -- |
+| LDAP / Active Directory | Yes (`AUTH_MODE=ldap`) | Configure LDAP settings |
+| Per-user data isolation | Yes (owner-scoped records) | -- |
+| SSO/OAuth | Not built-in | Implement OAuth2/SAML proxy |
+| Audit logging | Not built-in | Log aggregation service |
+| Rate limiting | Not built-in | API gateway or nginx |
+| Data encryption at rest | Not built-in | Encrypt volumes at rest |
+| Network segmentation | Not built-in | Docker networks, VPC |
 
 ---
 
@@ -391,7 +531,7 @@ If you discover security vulnerabilities:
 
 ## LDAP Authentication
 
-Open Notebook supports LDAP authentication (Active Directory, OpenLDAP, etc.) alongside password-based auth. When enabled, the login page shows a mode switcher allowing users to choose between LDAP and password authentication.
+Open Notebook supports LDAP authentication (Active Directory, OpenLDAP, etc.) for enterprise environments. Set `AUTH_MODE=ldap` and `ENABLE_LDAP=true` to activate this mode. Users are auto-registered in the system on their first successful LDAP login.
 
 ### How It Works
 
@@ -470,16 +610,15 @@ services:
       - LDAP_SEARCH_BASE=ou=users,dc=example,dc=com
 ```
 
-### Coexistence with Password Auth
+### Auth Mode Integration
 
-LDAP and password authentication can be enabled simultaneously. When both are active:
+When `AUTH_MODE=ldap`, the shared `OPEN_NOTEBOOK_PASSWORD` mechanism is disabled. All authentication goes through LDAP:
 
-- The login page shows a toggle to switch between modes
-- Password auth uses the `OPEN_NOTEBOOK_PASSWORD` env var (Bearer token)
-- LDAP auth issues a JWT that the middleware also accepts
-- Admin endpoints (LDAP config) require the password-based Bearer token
-
-If only LDAP is enabled (no `OPEN_NOTEBOOK_PASSWORD` set), the middleware still enforces authentication — it requires a valid LDAP JWT Bearer token on every request. This means LDAP-only mode is fully protected; unauthenticated requests are rejected.
+- The login page shows the LDAP login form
+- Successful authentication issues a JWT session token
+- The JWT is used as a Bearer token for all subsequent API requests
+- RBAC and user management are fully active (see [RBAC](#role-based-access-control-rbac) above)
+- The `ADMIN_USERNAME` env var designates which LDAP user becomes the super admin
 
 ### Security Considerations
 

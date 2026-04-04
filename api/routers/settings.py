@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
+from api.auth_config import admin_guard
 from api.models import SettingsResponse, SettingsUpdate
 from open_notebook.domain.content_settings import ContentSettings
 from open_notebook.exceptions import InvalidInputError
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(admin_guard)])
 
 
 @router.get("/settings", response_model=SettingsResponse)

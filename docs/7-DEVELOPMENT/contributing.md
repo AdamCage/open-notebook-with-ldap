@@ -169,6 +169,7 @@ We're actively looking for contributions in these areas:
 3. **Performance** - Async processing improvements and caching
 4. **Documentation** - API examples and user guides
 5. **Integrations** - New content sources and AI providers
+6. **Translations** - The `auth` and `admin` locale keys in `frontend/src/lib/locales/` are currently English stubs for all locales except `en-US` and `ru-RU`. Native-speaker translations for `pt-BR`, `zh-CN`, `zh-TW`, `ja-JP`, `it-IT`, `fr-FR`, and `bn-IN` are welcome!
 
 ## Getting Help
 

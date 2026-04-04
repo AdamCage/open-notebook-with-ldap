@@ -41,44 +41,57 @@ import {
   Plus,
   Wrench,
   Command,
+  Users,
 } from 'lucide-react'
+import { useAuthStore } from '@/lib/stores/auth-store'
 
-const getNavigation = (t: TranslationKeys) => [
-  {
-    title: t.navigation.collect,
-    items: [
-      { name: t.navigation.sources, href: '/sources', icon: FileText },
-    ],
-  },
-  {
-    title: t.navigation.process,
-    items: [
-      { name: t.navigation.notebooks, href: '/notebooks', icon: Book },
-      { name: t.navigation.askAndSearch, href: '/search', icon: Search },
-    ],
-  },
-  {
-    title: t.navigation.create,
-    items: [
-      { name: t.navigation.podcasts, href: '/podcasts', icon: Mic },
-    ],
-  },
-  {
-    title: t.navigation.manage,
-    items: [
+const getNavigation = (t: TranslationKeys, isAdmin: boolean) => {
+  const sections = [
+    {
+      title: t.navigation.collect,
+      items: [
+        { name: t.navigation.sources, href: '/sources', icon: FileText },
+      ],
+    },
+    {
+      title: t.navigation.process,
+      items: [
+        { name: t.navigation.notebooks, href: '/notebooks', icon: Book },
+        { name: t.navigation.askAndSearch, href: '/search', icon: Search },
+      ],
+    },
+    {
+      title: t.navigation.create,
+      items: [
+        { name: t.navigation.podcasts, href: '/podcasts', icon: Mic },
+      ],
+    },
+  ]
+
+  if (isAdmin) {
+    const manageItems = [
       { name: t.navigation.models, href: '/settings/api-keys', icon: Bot },
       { name: t.navigation.transformations, href: '/transformations', icon: Shuffle },
       { name: t.navigation.settings, href: '/settings', icon: Settings },
       { name: t.navigation.advanced, href: '/advanced', icon: Wrench },
-    ],
-  },
-] as const
+      { name: t.navigation.users, href: '/admin/users', icon: Users },
+    ]
+    sections.push({
+      title: t.navigation.manage,
+      items: manageItems,
+    })
+  }
+
+  return sections
+}
 
 type CreateTarget = 'source' | 'notebook' | 'podcast'
 
 export function AppSidebar() {
   const { t } = useTranslation()
-  const navigation = getNavigation(t)
+  const { isAdmin, authMode } = useAuthStore()
+  const showAdminNav = authMode === 'none' || authMode === 'password' || isAdmin
+  const navigation = getNavigation(t, showAdminNav)
   const pathname = usePathname()
   const { logout } = useAuth()
   const { isCollapsed, toggleCollapse } = useSidebarStore()

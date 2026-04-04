@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { getConfig } from '@/lib/config'
@@ -11,14 +12,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertCircle } from 'lucide-react'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { useTranslation } from '@/lib/hooks/use-translation'
-import type { AuthMode } from '@/lib/types/auth'
 
 export function LoginForm() {
   const { t, language } = useTranslation()
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
-  const [authMode, setAuthMode] = useState<AuthMode>('password')
-  const { login, ldapLogin, isLoading, error, ldapEnabled } = useAuth()
+  const {
+    login,
+    localLogin,
+    ldapLogin,
+    isLoading,
+    error,
+    ldapEnabled,
+    authMode,
+    registrationEnabled,
+  } = useAuth()
   const { authRequired, checkAuthRequired, hasHydrated, isAuthenticated } = useAuthStore()
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [configInfo, setConfigInfo] = useState<{ apiUrl: string; version: string; buildTime: string } | null>(null)
@@ -35,12 +43,6 @@ export function LoginForm() {
       console.error('Failed to load config:', err)
     })
   }, [])
-
-  useEffect(() => {
-    if (ldapEnabled) {
-      setAuthMode('ldap')
-    }
-  }, [ldapEnabled])
 
   useEffect(() => {
     if (!hasHydrated) {
@@ -133,6 +135,10 @@ export function LoginForm() {
         if (username.trim() && password.trim()) {
           await ldapLogin(username, password)
         }
+      } else if (authMode === 'local') {
+        if (username.trim() && password.trim()) {
+          await localLogin(username, password)
+        }
       } else {
         if (password.trim()) {
           await login(password)
@@ -143,29 +149,34 @@ export function LoginForm() {
     }
   }
 
-  const showPasswordAuth = authRequired
-  const showLdapAuth = ldapEnabled
-  const showModeSwitcher = showPasswordAuth && showLdapAuth
+  const needsUsername = authMode === 'ldap' || authMode === 'local'
 
-  const isLdapMode = authMode === 'ldap'
-  const canSubmit = isLdapMode
+  const canSubmit = needsUsername
     ? username.trim() && password.trim()
     : password.trim()
+
+  const getTitle = () => {
+    if (authMode === 'ldap') return t.auth.ldapLoginTitle
+    if (authMode === 'local') return t.auth.localLoginTitle || t.auth.loginTitle
+    return t.auth.loginTitle
+  }
+
+  const getDescription = () => {
+    if (authMode === 'ldap') return t.auth.ldapLoginDesc
+    if (authMode === 'local') return t.auth.localLoginDesc || t.auth.loginDesc
+    return t.auth.loginDesc
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>
-            {isLdapMode ? t.auth.ldapLoginTitle : t.auth.loginTitle}
-          </CardTitle>
-          <CardDescription>
-            {isLdapMode ? t.auth.ldapLoginDesc : t.auth.loginDesc}
-          </CardDescription>
+          <CardTitle>{getTitle()}</CardTitle>
+          <CardDescription>{getDescription()}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isLdapMode && (
+            {needsUsername && (
               <div>
                 <Input
                   type="text"
@@ -185,7 +196,7 @@ export function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
-                autoComplete={isLdapMode ? 'current-password' : undefined}
+                autoComplete={needsUsername ? 'current-password' : undefined}
               />
             </div>
 
@@ -204,20 +215,13 @@ export function LoginForm() {
               {isLoading ? t.auth.authenticating : t.auth.signIn}
             </Button>
 
-            {showModeSwitcher && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => {
-                  setAuthMode(isLdapMode ? 'password' : 'ldap')
-                  setPassword('')
-                  setUsername('')
-                }}
-                disabled={isLoading}
-              >
-                {isLdapMode ? t.auth.continueWithPassword : t.auth.continueWithLdap}
-              </Button>
+            {registrationEnabled && authMode === 'local' && (
+              <div className="text-center text-sm text-muted-foreground">
+                {t.auth.noAccountYet}{' '}
+                <Link href="/register" className="text-primary hover:underline font-medium">
+                  {t.auth.registerLink}
+                </Link>
+              </div>
             )}
 
             {configInfo && (

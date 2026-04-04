@@ -22,6 +22,7 @@ import {
   Settings,
   FileText,
   Wrench,
+  Users,
   MessageCircleQuestion,
   Plus,
   Sun,
@@ -31,17 +32,27 @@ import {
 } from 'lucide-react'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import { TranslationKeys } from '@/lib/locales'
+import { useAuthStore } from '@/lib/stores/auth-store'
 
-const getNavigationItems = (t: TranslationKeys) => [
-  { name: t.navigation.sources, href: '/sources', icon: FileText, keywords: ['files', 'documents', 'upload'] },
-  { name: t.navigation.notebooks, href: '/notebooks', icon: Book, keywords: ['notes', 'research', 'projects'] },
-  { name: t.navigation.askAndSearch, href: '/search', icon: Search, keywords: ['find', 'query'] },
-  { name: t.navigation.podcasts, href: '/podcasts', icon: Mic, keywords: ['audio', 'episodes', 'generate'] },
-  { name: t.navigation.models, href: '/settings/api-keys', icon: Bot, keywords: ['ai', 'llm', 'providers', 'openai', 'anthropic'] },
-  { name: t.navigation.transformations, href: '/transformations', icon: Shuffle, keywords: ['prompts', 'templates', 'actions'] },
-  { name: t.navigation.settings, href: '/settings', icon: Settings, keywords: ['preferences', 'config', 'options'] },
-  { name: t.navigation.advanced, href: '/advanced', icon: Wrench, keywords: ['debug', 'system', 'tools'] },
-]
+const ADMIN_ONLY_PATHS = new Set(['/settings/api-keys', '/transformations', '/settings', '/advanced', '/admin/users'])
+
+const getNavigationItems = (t: TranslationKeys, showAdmin: boolean) => {
+  const items = [
+    { name: t.navigation.sources, href: '/sources', icon: FileText, keywords: ['files', 'documents', 'upload'] },
+    { name: t.navigation.notebooks, href: '/notebooks', icon: Book, keywords: ['notes', 'research', 'projects'] },
+    { name: t.navigation.askAndSearch, href: '/search', icon: Search, keywords: ['find', 'query'] },
+    { name: t.navigation.podcasts, href: '/podcasts', icon: Mic, keywords: ['audio', 'episodes', 'generate'] },
+    { name: t.navigation.models, href: '/settings/api-keys', icon: Bot, keywords: ['ai', 'llm', 'providers', 'openai', 'anthropic'] },
+    { name: t.navigation.transformations, href: '/transformations', icon: Shuffle, keywords: ['prompts', 'templates', 'actions'] },
+    { name: t.navigation.settings, href: '/settings', icon: Settings, keywords: ['preferences', 'config', 'options'] },
+    { name: t.navigation.advanced, href: '/advanced', icon: Wrench, keywords: ['debug', 'system', 'tools'] },
+    { name: t.navigation.users, href: '/admin/users', icon: Users, keywords: ['accounts', 'admin', 'manage'] },
+  ]
+  if (!showAdmin) {
+    return items.filter(item => !ADMIN_ONLY_PATHS.has(item.href))
+  }
+  return items
+}
 
 const getCreateItems = (t: TranslationKeys) => [
   { name: t.common.newSource, action: 'source', icon: FileText },
@@ -58,7 +69,9 @@ const getThemeItems = (t: TranslationKeys) => [
 export function CommandPalette() {
   const { t } = useTranslation()
   const commandInputId = useId()
-  const navigationItems = useMemo(() => getNavigationItems(t), [t])
+  const { isAdmin, authMode } = useAuthStore()
+  const showAdmin = authMode === 'none' || authMode === 'password' || isAdmin
+  const navigationItems = useMemo(() => getNavigationItems(t, showAdmin), [t, showAdmin])
   const createItems = useMemo(() => getCreateItems(t), [t])
   const themeItems = useMemo(() => getThemeItems(t), [t])
   

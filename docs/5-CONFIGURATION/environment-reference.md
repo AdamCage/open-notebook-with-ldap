@@ -19,6 +19,19 @@ Comprehensive list of all environment variables available in Open Notebook.
 
 ---
 
+## Authentication
+
+| Variable | Required? | Default | Description |
+|----------|-----------|---------|-------------|
+| `AUTH_MODE` | No | `none` | Authentication mode: `none`, `password`, `local`, or `ldap` |
+| `ADMIN_USERNAME` | For `local`/`ldap` | None | Username of the initial super administrator |
+| `ADMIN_PASSWORD` | For `local` | None | Initial password for the super administrator (local mode only) |
+| `JWT_SECRET` | Recommended | Falls back to `OPEN_NOTEBOOK_ENCRYPTION_KEY` | Dedicated secret for signing JWT session tokens. Priority: `JWT_SECRET` > `LDAP_JWT_SECRET` > `OPEN_NOTEBOOK_ENCRYPTION_KEY` |
+
+> **Note**: When `AUTH_MODE` is `local` or `ldap`, the `OPEN_NOTEBOOK_PASSWORD` variable is ignored. See the [Security & Authentication Guide](security.md) for full details on each mode.
+
+---
+
 ## Database: SurrealDB
 
 | Variable | Required? | Default | Description |
@@ -156,6 +169,41 @@ SURREAL_PASSWORD=secure_password
 ```
 OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
 API_URL=https://mynotebook.example.com
+```
+
+### Multi-User with Local Auth
+```
+OPEN_NOTEBOOK_ENCRYPTION_KEY=your-strong-secret-key
+AUTH_MODE=local
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-admin-password
+JWT_SECRET=your-random-jwt-secret
+SURREAL_URL=ws://surrealdb:8000/rpc
+SURREAL_USER=root
+SURREAL_PASSWORD=secure_password
+SURREAL_NAMESPACE=open_notebook
+SURREAL_DATABASE=open_notebook
+```
+
+### Multi-User with LDAP
+```
+OPEN_NOTEBOOK_ENCRYPTION_KEY=your-strong-secret-key
+AUTH_MODE=ldap
+ADMIN_USERNAME=ldap_admin_user
+JWT_SECRET=your-random-jwt-secret
+ENABLE_LDAP=true
+LDAP_SERVER_HOST=ad.company.com
+LDAP_SERVER_PORT=636
+LDAP_USE_TLS=true
+LDAP_ATTRIBUTE_FOR_USERNAME=sAMAccountName
+LDAP_APP_DN=CN=svc-opennotebook,OU=Service Accounts,DC=company,DC=com
+LDAP_APP_PASSWORD=service_account_password
+LDAP_SEARCH_BASE=OU=Users,DC=company,DC=com
+SURREAL_URL=ws://surrealdb:8000/rpc
+SURREAL_USER=root
+SURREAL_PASSWORD=secure_password
+SURREAL_NAMESPACE=open_notebook
+SURREAL_DATABASE=open_notebook
 ```
 
 ### Corporate Environment (Behind Proxy)

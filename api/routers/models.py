@@ -3,9 +3,11 @@ import traceback
 from typing import Dict, List, Optional
 
 from esperanto import AIFactory
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
+
+from api.auth_config import admin_guard
 
 from api.models import (
     DefaultModelsResponse,
@@ -25,7 +27,7 @@ from open_notebook.ai.model_discovery import (
 from open_notebook.ai.models import DefaultModels, Model
 from open_notebook.exceptions import InvalidInputError
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(admin_guard)])
 
 
 # =============================================================================

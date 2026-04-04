@@ -1,0 +1,91 @@
+@startuml seq_local_auth
+title Local Authentication Flow (AUTH_MODE=local)
+
+actor User
+participant "LoginForm /\nRegisterForm" as LF
+participant "auth-store" as Store
+participant "POST /auth/register\n(router)" as RegRouter
+participant "POST /auth/login\n(router)" as LoginRouter
+participant "AppUser\n(domain)" as Model
+participant "create_ldap_jwt\n(auth.py)" as JWT
+participant "Middleware\n(PasswordAuthMiddleware)" as MW
+participant "User Status\nCache (TTL 60s)" as Cache
+actor Admin
+
+== Registration ==
+
+User -> LF : Fill username, email, password\nclick "Register"
+LF -> Store : register(user, email, pass)
+Store -> RegRouter : POST /api/auth/register\n{username, email, password}
+RegRouter -> RegRouter : Validate password >= 6 chars
+RegRouter -> Model : Check username uniqueness
+Model --> RegRouter : Not found (OK)
+RegRouter -> Model : Create AppUser\n(status=pending, role=user,\npassword=bcrypt hash)
+Model --> RegRouter : Created
+RegRouter --> Store : 200 {message: "registration_pending"}
+Store --> LF : success
+LF -> User : Show "Awaiting Approval" page
+
+== Admin Approval ==
+
+Admin -> Admin : Navigate to\nAdmin > Users
+Admin -> Model : GET /api/users?status=pending
+Model --> Admin : List of pending users
+Admin -> Model : POST /api/users/{id}/approve
+Model -> Model : Set status = active
+Model -> Cache : invalidate_user_status_cache(username)
+Model --> Admin : 200 OK
+
+== Login ==
+
+User -> LF : Enter username + password\nclick "Sign in"
+LF -> Store : login(user, pass)
+Store -> LoginRouter : POST /api/auth/login\n{username, password}
+LoginRouter -> Model : Fetch AppUser by username
+Model --> LoginRouter : AppUser record
+
+alt User is active
+    LoginRouter -> LoginRouter : Verify bcrypt hash
+    alt Password matches
+        LoginRouter -> JWT : create_ldap_jwt(sub, email, name,\nrole, type="local")
+        JWT --> LoginRouter : JWT token (HS256, 24h expiry)
+        LoginRouter --> Store : 200 {token, user}
+        Store -> Store : isAuthenticated = true\ntoken = JWT, user = profile
+        Store --> LF : success
+        LF -> User : Redirect to /notebooks
+    else Password wrong
+        LoginRouter --> Store : 401 AuthenticationError
+        Store --> LF : error
+        LF -> User : Show "Invalid credentials"
+    end
+else User is pending
+    LoginRouter --> Store : 403 "Account pending approval"
+    Store --> LF : error
+    LF -> User : Show "Awaiting Approval" page
+else User is deactivated
+    LoginRouter --> Store : 403 "Account deactivated"
+    Store --> LF : error
+    LF -> User : Show "Account deactivated"
+end
+
+== Authenticated Request (Middleware) ==
+
+User -> MW : GET /api/notebooks\nAuthorization: Bearer {JWT}
+MW -> MW : Decode JWT\n(verify signature + expiry)
+MW -> Cache : Check user active status
+alt Cache hit (< 60s)
+    Cache --> MW : status = active
+else Cache miss
+    MW -> Model : Fetch AppUser by username
+    Model --> MW : AppUser (status, role)
+    MW -> Cache : Store status (TTL 60s)
+end
+
+alt User is active
+    MW -> MW : Set request.state.user\n(identity, role, is_admin)
+    MW -> MW : Forward to endpoint
+else User is not active
+    MW --> User : 401 "Account disabled"
+end
+
+@enduml
