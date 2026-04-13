@@ -21,6 +21,13 @@ services:
       # REQUIRED: Change this in your .env file
       - OPEN_NOTEBOOK_ENCRYPTION_KEY=${OPEN_NOTEBOOK_ENCRYPTION_KEY:-change-me-to-a-secret-string}
 
+      # Authentication mode and credentials
+      - AUTH_MODE=${AUTH_MODE:-none}
+      - OPEN_NOTEBOOK_PASSWORD=${OPEN_NOTEBOOK_PASSWORD:-}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+
       # LDAP Authentication (configure in .env)
       - ENABLE_LDAP=${ENABLE_LDAP:-false}
       - LDAP_SERVER_HOST=${LDAP_SERVER_HOST:-localhost}

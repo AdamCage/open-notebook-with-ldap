@@ -27,7 +27,7 @@ from open_notebook.ai.model_discovery import (
 from open_notebook.ai.models import DefaultModels, Model
 from open_notebook.exceptions import InvalidInputError
 
-router = APIRouter(dependencies=[Depends(admin_guard)])
+router = APIRouter()
 
 
 # =============================================================================
@@ -192,7 +192,7 @@ async def get_models(
         raise HTTPException(status_code=500, detail=f"Error fetching models: {str(e)}")
 
 
-@router.post("/models", response_model=ModelResponse)
+@router.post("/models", response_model=ModelResponse, dependencies=[Depends(admin_guard)])
 async def create_model(model_data: ModelCreate):
     """Create a new model configuration."""
     try:
@@ -247,7 +247,7 @@ async def create_model(model_data: ModelCreate):
         raise HTTPException(status_code=500, detail=f"Error creating model: {str(e)}")
 
 
-@router.delete("/models/{model_id}")
+@router.delete("/models/{model_id}", dependencies=[Depends(admin_guard)])
 async def delete_model(model_id: str):
     """Delete a model configuration."""
     try:
@@ -265,7 +265,11 @@ async def delete_model(model_id: str):
         raise HTTPException(status_code=500, detail=f"Error deleting model: {str(e)}")
 
 
-@router.post("/models/{model_id}/test", response_model=ModelTestResponse)
+@router.post(
+    "/models/{model_id}/test",
+    response_model=ModelTestResponse,
+    dependencies=[Depends(admin_guard)],
+)
 async def test_model(model_id: str):
     """Test if a specific model is correctly configured and functional."""
     try:
@@ -310,7 +314,11 @@ async def get_default_models():
         )
 
 
-@router.put("/models/defaults", response_model=DefaultModelsResponse)
+@router.put(
+    "/models/defaults",
+    response_model=DefaultModelsResponse,
+    dependencies=[Depends(admin_guard)],
+)
 async def update_default_models(defaults_data: DefaultModelsResponse):
     """Update default model assignments."""
     try:
@@ -360,7 +368,11 @@ async def update_default_models(defaults_data: DefaultModelsResponse):
         )
 
 
-@router.get("/models/providers", response_model=ProviderAvailabilityResponse)
+@router.get(
+    "/models/providers",
+    response_model=ProviderAvailabilityResponse,
+    dependencies=[Depends(admin_guard)],
+)
 async def get_provider_availability():
     """Get provider availability based on database config and environment variables."""
     try:
@@ -481,7 +493,9 @@ async def get_provider_availability():
 
 
 @router.get(
-    "/models/discover/{provider}", response_model=List[DiscoveredModelResponse]
+    "/models/discover/{provider}",
+    response_model=List[DiscoveredModelResponse],
+    dependencies=[Depends(admin_guard)],
 )
 async def discover_models(provider: str):
     """
@@ -511,7 +525,11 @@ async def discover_models(provider: str):
         )
 
 
-@router.post("/models/sync/{provider}", response_model=ProviderSyncResponse)
+@router.post(
+    "/models/sync/{provider}",
+    response_model=ProviderSyncResponse,
+    dependencies=[Depends(admin_guard)],
+)
 async def sync_models(provider: str):
     """
     Sync models for a specific provider.
@@ -538,7 +556,11 @@ async def sync_models(provider: str):
         raise HTTPException(status_code=500, detail="Error syncing models. Check server logs for details.")
 
 
-@router.post("/models/sync", response_model=AllProvidersSyncResponse)
+@router.post(
+    "/models/sync",
+    response_model=AllProvidersSyncResponse,
+    dependencies=[Depends(admin_guard)],
+)
 async def sync_all_models():
     """
     Sync models for all configured providers.
@@ -576,7 +598,11 @@ async def sync_all_models():
         )
 
 
-@router.get("/models/count/{provider}", response_model=ProviderModelCountResponse)
+@router.get(
+    "/models/count/{provider}",
+    response_model=ProviderModelCountResponse,
+    dependencies=[Depends(admin_guard)],
+)
 async def get_model_count(provider: str):
     """
     Get count of registered models for a provider, grouped by type.
@@ -599,7 +625,11 @@ async def get_model_count(provider: str):
         )
 
 
-@router.get("/models/by-provider/{provider}", response_model=List[ModelResponse])
+@router.get(
+    "/models/by-provider/{provider}",
+    response_model=List[ModelResponse],
+    dependencies=[Depends(admin_guard)],
+)
 async def get_models_by_provider(provider: str):
     """
     Get all registered models for a specific provider.
@@ -677,7 +707,11 @@ def _get_preferred_model(
     return models[0] if models else None
 
 
-@router.post("/models/auto-assign", response_model=AutoAssignResult)
+@router.post(
+    "/models/auto-assign",
+    response_model=AutoAssignResult,
+    dependencies=[Depends(admin_guard)],
+)
 async def auto_assign_defaults():
     """
     Auto-assign default models based on available models.
