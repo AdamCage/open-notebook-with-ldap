@@ -393,6 +393,7 @@ async def embed_source_command(input_data: EmbedSourceInput) -> EmbedSourceOutpu
         records = [
             {
                 "source": ensure_record_id(input_data.source_id),
+                "owner": source.owner,
                 "order": idx,
                 "content": chunk,
                 "embedding": embedding,
@@ -481,16 +482,22 @@ async def create_insight_command(
         )
 
         # 1. Create insight record in database
+        source = await Source.get(input_data.source_id)
+        if not source:
+            raise ValueError(f"Source '{input_data.source_id}' not found")
+
         result = await repo_query(
             """
             CREATE source_insight CONTENT {
                 "source": $source_id,
+                "owner": $owner,
                 "insight_type": $insight_type,
                 "content": $content
             };
             """,
             {
                 "source_id": ensure_record_id(input_data.source_id),
+                "owner": source.owner,
                 "insight_type": input_data.insight_type,
                 "content": input_data.content,
             },

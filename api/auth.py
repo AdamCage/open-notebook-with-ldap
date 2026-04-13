@@ -177,9 +177,12 @@ def get_owner_id(user: Optional[dict]) -> Optional[str]:
     """
     Derive the owner identifier from a user dict.
     Returns None when auth is disabled (no filtering applied).
-    Returns the user's 'sub' claim for scoping data.
+    Admin users are not owner-scoped and can access all records.
+    Non-admin users are scoped by the user's 'sub' claim.
     """
     if user is None:
+        return None
+    if user.get("role") == "admin":
         return None
     return user.get("sub")
 

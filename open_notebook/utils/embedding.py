@@ -113,6 +113,12 @@ async def generate_embeddings(
 
     embedding_model = await model_manager.get_embedding_model()
     if not embedding_model:
+        cmd_context = f" (command: {command_id})" if command_id else ""
+        logger.error(
+            "Embedding model is not configured{}. "
+            "Set a default embedding model in Settings -> Models.",
+            cmd_context,
+        )
         raise ValueError(
             "No embedding model configured. Please configure one in the Models section."
         )

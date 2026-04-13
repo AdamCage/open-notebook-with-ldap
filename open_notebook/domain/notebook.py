@@ -671,6 +671,7 @@ async def vector_search(
         from open_notebook.utils.embedding import generate_embedding
 
         embed = await generate_embedding(keyword)
+        query_embedding_dim = len(embed)
         search_results = await repo_query(
             """
             SELECT * FROM fn::vector_search($embed, $results, $source, $note, $minimum_score, $owner);
@@ -684,6 +685,36 @@ async def vector_search(
                 "owner": owner,
             },
         )
+        if not search_results:
+            count_result = await repo_query(
+                """
+                SELECT count() as total FROM source_embedding
+                WHERE embedding != none AND ($owner IS NONE OR owner = $owner)
+                GROUP ALL;
+                """,
+                {"owner": owner},
+            )
+            dims_result = await repo_query(
+                """
+                RETURN array::distinct(
+                    SELECT VALUE array::len(embedding)
+                    FROM source_embedding
+                    WHERE embedding != none AND ($owner IS NONE OR owner = $owner)
+                );
+                """,
+                {"owner": owner},
+            )
+            total_embeddings = count_result[0]["total"] if count_result else 0
+            dimensions = dims_result if dims_result else []
+            logger.warning(
+                "Vector search returned 0 results (query_dim={}, min_score={}, owner={}). "
+                "Available source embeddings: total={}, dimensions={}",
+                query_embedding_dim,
+                minimum_score,
+                owner,
+                total_embeddings,
+                dimensions,
+            )
         return search_results
     except Exception as e:
         logger.error(f"Error performing vector search: {str(e)}")
