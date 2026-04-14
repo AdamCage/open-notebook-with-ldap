@@ -1,0 +1,30 @@
+# Next.js production server (standalone build). Run `npm run build` and copy
+# static assets per deploy/linux/README.md before first start.
+#
+# If users reach the UI from other hosts, set API_URL / INTERNAL_API_URL to
+# http://<this-host-ip>:7605 (or your reverse-proxy URL).
+#
+# sudo cp open-notebook-frontend.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable --now open-notebook-frontend.service
+
+[Unit]
+Description=Open Notebook frontend (Next.js)
+After=network-online.target open-notebook-api.service
+Wants=open-notebook-api.service
+
+[Service]
+Type=simple
+User=open-notebook
+Group=open-notebook
+WorkingDirectory=/opt/open-notebook/frontend
+Environment=NODE_ENV=production
+Environment=PORT=7600
+Environment=HOSTNAME=0.0.0.0
+Environment=API_URL=http://127.0.0.1:7605
+Environment=INTERNAL_API_URL=http://127.0.0.1:7605
+ExecStart=/usr/bin/node /opt/open-notebook/frontend/start-server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

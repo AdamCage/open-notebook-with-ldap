@@ -181,6 +181,7 @@ uv run uvicorn api.main:app --port 5056
 1. Read [Development Guide](../7-DEVELOPMENT/quick-start.md)
 2. See [Architecture Overview](../7-DEVELOPMENT/architecture.md)
 3. Check [Contributing Guide](../7-DEVELOPMENT/contributing.md)
+4. For production on Linux (systemd, SurrealDB without Docker), see [deploy/linux/README.md](../../deploy/linux/README.md)
 
 ---
 

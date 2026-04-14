@@ -1,0 +1,23 @@
+# Install SurrealDB to /usr/local/bin/surreal (or edit ExecStart).
+# Create /etc/surrealdb.env — see deploy/linux/README.md
+#
+# sudo cp surrealdb.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable --now surrealdb.service
+
+[Unit]
+Description=SurrealDB (Open Notebook)
+Documentation=https://surrealdb.com/docs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=open-notebook
+Group=open-notebook
+EnvironmentFile=/etc/surrealdb.env
+ExecStart=/bin/bash -c 'exec /usr/local/bin/surreal start --log info --user "$SURREAL_USER" --pass "$SURREAL_PASSWORD" --bind "$SURREAL_BIND" rocksdb:"$SURREAL_DATA"'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

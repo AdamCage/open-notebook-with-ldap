@@ -1,0 +1,23 @@
+# Adjust paths if the app is not installed under /opt/open-notebook.
+# Ensure `uv` is at /usr/local/bin/uv (or edit ExecStart / PATH).
+#
+# sudo cp open-notebook-api.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable --now open-notebook-api.service
+
+[Unit]
+Description=Open Notebook API (FastAPI / uvicorn)
+After=network-online.target surrealdb.service
+Requires=surrealdb.service
+
+[Service]
+Type=simple
+User=open-notebook
+Group=open-notebook
+WorkingDirectory=/opt/open-notebook
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/bin/bash -c 'cd /opt/open-notebook && exec /usr/local/bin/uv run --env-file .env run_api.py'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+# Background job worker (surreal-commands). Requires the same .env as the API.
+#
+# sudo cp open-notebook-worker.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable --now open-notebook-worker.service
+
+[Unit]
+Description=Open Notebook surreal-commands worker
+After=network-online.target surrealdb.service
+Requires=surrealdb.service
+
+[Service]
+Type=simple
+User=open-notebook
+Group=open-notebook
+WorkingDirectory=/opt/open-notebook
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/bin/bash -c 'cd /opt/open-notebook && exec /usr/local/bin/uv run --env-file .env surreal-commands-worker --import-modules commands'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
